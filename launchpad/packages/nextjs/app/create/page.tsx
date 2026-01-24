@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import type { NextPage } from "next";
 import { formatEther, keccak256, toBytes } from "viem";
 import { useAccount, useReadContract } from "wagmi";
-import { RocketLaunchIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { RocketLaunchIcon, ArrowLeftIcon, CheckCircleIcon, XCircleIcon, WalletIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import { useScaffoldWriteContract, useDeployedContractInfo } from "~~/hooks/scaffold-eth";
-import { notification } from "~~/utils/scaffold-eth";
+import { useScaffoldWriteContract, useDeployedContractInfo, useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { notification, getBlockExplorerTxLink } from "~~/utils/scaffold-eth";
 
 // ABI for TokenFactory config getters
 const TokenFactoryConfigABI = [
@@ -52,12 +52,19 @@ const TokenFactoryConfigABI = [
 // Event signature for TokenLaunched(address indexed token, string name, string symbol, address indexed creator, uint256 timestamp)
 const TOKEN_LAUNCHED_TOPIC = keccak256(toBytes("TokenLaunched(address,string,string,address,uint256)"));
 
+type CreationPhase = "idle" | "wallet" | "confirming" | "success" | "error";
+
 const CreateToken: NextPage = () => {
   const router = useRouter();
   const { isConnected } = useAccount();
+  const { targetNetwork } = useTargetNetwork();
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
+  const [creationPhase, setCreationPhase] = useState<CreationPhase>("idle");
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const isCreating = creationPhase !== "idle";
 
   const { writeContractAsync: createToken } = useScaffoldWriteContract("TokenFactory");
   
@@ -113,36 +120,62 @@ const CreateToken: NextPage = () => {
       return;
     }
 
-    setIsCreating(true);
+    // Reset state and start wallet phase
+    setCreationPhase("wallet");
+    setTxHash(null);
+    setErrorMessage(null);
+
     try {
-      await createToken(
+      const hash = await createToken(
         {
           functionName: "createToken",
           args: [name, symbol.toUpperCase()],
         },
         {
           onBlockConfirmation: (receipt) => {
+            // Set success phase briefly before redirect
+            setCreationPhase("success");
+
             // Find TokenLaunched event - topics[1] is the indexed token address
             const tokenLog = receipt.logs.find(
               (log) => log.topics[0] === TOKEN_LAUNCHED_TOPIC
             );
 
-            if (tokenLog?.topics[1]) {
-              // Extract address from 32-byte padded topic (last 40 hex chars = 20 bytes)
-              const tokenAddress = `0x${tokenLog.topics[1].slice(-40)}`;
-              router.push(`/token/${tokenAddress}`);
-            } else {
-              router.push("/");
-            }
+            // Small delay to show success state before redirect
+            setTimeout(() => {
+              if (tokenLog?.topics[1]) {
+                // Extract address from 32-byte padded topic (last 40 hex chars = 20 bytes)
+                const tokenAddress = `0x${tokenLog.topics[1].slice(-40)}`;
+                router.push(`/token/${tokenAddress}`);
+              } else {
+                router.push("/");
+              }
+            }, 1000);
           },
         }
       );
 
-      notification.success("Token created successfully!");
+      // Transaction submitted - move to confirming phase
+      if (hash) {
+        setTxHash(hash);
+        setCreationPhase("confirming");
+      }
     } catch (error: any) {
-      notification.error(error.message || "Failed to create token");
-    } finally {
-      setIsCreating(false);
+      // Check if user rejected the transaction
+      const isUserRejection = 
+        error.message?.includes("User rejected") || 
+        error.message?.includes("user rejected") ||
+        error.message?.includes("User denied") ||
+        error.code === 4001;
+
+      if (isUserRejection) {
+        // Silent reset for user rejection
+        setCreationPhase("idle");
+      } else {
+        // Show error modal for other errors
+        setErrorMessage(error.message || "Failed to create token");
+        setCreationPhase("error");
+      }
     }
   };
 
@@ -283,6 +316,92 @@ const CreateToken: NextPage = () => {
           )}
         </div>
       </div>
+
+      {/* Creation Progress Modal */}
+      {creationPhase !== "idle" && (
+        <div className="modal modal-open">
+          <div className="modal-box text-center max-w-md">
+            {/* Progress Steps */}
+            <ul className="steps steps-horizontal w-full mb-8">
+              <li className="step step-primary">
+                <span className="text-xs mt-1">Wallet</span>
+              </li>
+              <li className={`step ${creationPhase === "confirming" || creationPhase === "success" ? "step-primary" : ""}`}>
+                <span className="text-xs mt-1">Confirming</span>
+              </li>
+              <li className={`step ${creationPhase === "success" ? "step-primary" : ""}`}>
+                <span className="text-xs mt-1">Done</span>
+              </li>
+            </ul>
+
+            {/* Phase-specific content */}
+            {creationPhase === "wallet" && (
+              <div className="py-4">
+                <WalletIcon className="w-16 h-16 mx-auto text-primary mb-4" />
+                <p className="text-lg font-semibold">Confirm in Wallet</p>
+                <p className="text-sm text-base-content/60 mt-2">
+                  Please confirm the transaction in your wallet to create your token.
+                </p>
+                <span className="loading loading-dots loading-md text-primary mt-4"></span>
+              </div>
+            )}
+
+            {creationPhase === "confirming" && (
+              <div className="py-4">
+                <span className="loading loading-spinner loading-lg text-primary"></span>
+                <p className="text-lg font-semibold mt-4">Transaction Submitted</p>
+                <p className="text-sm text-base-content/60 mt-2">
+                  Waiting for blockchain confirmation...
+                </p>
+                <p className="text-xs text-base-content/40 mt-1">
+                  This may take 15-30 seconds on mainnet
+                </p>
+                {txHash && (
+                  <a
+                    href={getBlockExplorerTxLink(targetNetwork.id, txHash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="link link-primary text-sm mt-4 inline-block"
+                  >
+                    View on block explorer
+                  </a>
+                )}
+              </div>
+            )}
+
+            {creationPhase === "success" && (
+              <div className="py-4">
+                <CheckCircleIcon className="w-16 h-16 mx-auto text-success mb-4" />
+                <p className="text-lg font-semibold">Token Created!</p>
+                <p className="text-sm text-base-content/60 mt-2">
+                  Redirecting to your token page...
+                </p>
+              </div>
+            )}
+
+            {creationPhase === "error" && (
+              <div className="py-4">
+                <XCircleIcon className="w-16 h-16 mx-auto text-error mb-4" />
+                <p className="text-lg font-semibold">Transaction Failed</p>
+                <p className="text-sm text-base-content/60 mt-2 break-words max-w-sm mx-auto">
+                  {errorMessage || "An unknown error occurred"}
+                </p>
+                <button
+                  className="btn btn-primary mt-6"
+                  onClick={() => {
+                    setCreationPhase("idle");
+                    setTxHash(null);
+                    setErrorMessage(null);
+                  }}
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="modal-backdrop bg-base-300/80"></div>
+        </div>
+      )}
     </div>
   );
 };

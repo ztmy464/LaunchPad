@@ -11,6 +11,7 @@ import { useAccount, useBalance, useReadContract, useWriteContract } from "wagmi
 import {
   ArrowLeftIcon,
   ArrowsRightLeftIcon,
+  ArrowTopRightOnSquareIcon,
   BanknotesIcon,
   BeakerIcon,
   ClockIcon,
@@ -40,6 +41,7 @@ const PoolSwapInterface = ({
   sellFeePercent: number;
 }) => {
   const { address: userAddress, isConnected } = useAccount();
+  const { targetNetwork } = useTargetNetwork();
   const [mainTab, setMainTab] = useState<"swap" | "liquidity">("swap");
   const [swapTab, setSwapTab] = useState<"buy" | "sell">("buy");
   const [liquidityTab, setLiquidityTab] = useState<"add" | "remove">("add");
@@ -434,16 +436,44 @@ const PoolSwapInterface = ({
   const userTokenShare =
     totalLpSupply && totalLpSupply > 0n && userLpBalance ? (userLpBalance * tokenReserve) / totalLpSupply : 0n;
 
+  // Build Uniswap URL based on chain
+  const getUniswapUrl = () => {
+    // Map chain IDs to Uniswap chain names
+    const chainNames: Record<number, string> = {
+      1: "ethereum",
+      8453: "base",
+      10: "optimism",
+      42161: "arbitrum",
+      137: "polygon",
+    };
+    const chainName = chainNames[targetNetwork.id];
+    if (!chainName) return null;
+    return `https://app.uniswap.org/explore/tokens/${chainName}/${tokenAddress}`;
+  };
+  
+  const uniswapUrl = getUniswapUrl();
+
   return (
     <div className="space-y-4">
       <div className="alert alert-success">
         <RocketLaunchIcon className="w-5 h-5" />
-        <div>
+        <div className="flex-1">
           <div className="font-semibold">Trading on Pool!</div>
           <div className="text-sm">
             {buyFeePercent}% buy fee / {sellFeePercent}% sell fee
           </div>
         </div>
+        {uniswapUrl && (
+          <a
+            href={uniswapUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-sm btn-ghost gap-1"
+          >
+            <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+            Uniswap
+          </a>
+        )}
       </div>
 
       {/* Pool Stats */}
@@ -575,7 +605,7 @@ const PoolSwapInterface = ({
                 <div className="font-mono font-semibold text-lg">
                   {swapTab === "buy"
                     ? `${estimatedBuyTokens !== undefined ? (Number(estimatedBuyTokens) / 1e18).toFixed(4) : "0"} ${symbol}`
-                    : `${estimatedSellEth !== undefined ? Number(formatEther(estimatedSellEth)).toFixed(4) : "0"} ETH`}
+                    : `${estimatedSellEth !== undefined ? Number(formatEther(estimatedSellEth)).toFixed(10).replace(/\.?0+$/, "") : "0"} ETH`}
                 </div>
                 <div className="text-xs text-base-content/60 mt-1">
                   {swapTab === "buy" ? `${buyFeePercent}% fee applied` : `${sellFeePercent}% fee applied`}
@@ -1422,7 +1452,7 @@ const TokenPage: NextPage = () => {
                   <div className="font-mono font-semibold text-lg">
                     {activeTab === "buy"
                       ? `${estimatedTokens !== undefined ? (Number(estimatedTokens) / 1e18).toFixed(4) : "0"} ${symbol || "tokens"}`
-                      : `${estimatedEth !== undefined ? Number(formatEther(estimatedEth)).toFixed(4) : "0"} ETH`}
+                      : `${estimatedEth !== undefined ? Number(formatEther(estimatedEth)).toFixed(10).replace(/\.?0+$/, "") : "0"} ETH`}
                   </div>
                   <div className="text-xs text-base-content/60 mt-1">
                     {activeTab === "buy" ? `${buyFeePercent}% fee applied` : `${sellFeePercent}% fee applied`}

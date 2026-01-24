@@ -3,29 +3,109 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { NextPage } from "next";
-import { useAccount } from "wagmi";
+import { formatEther, keccak256, toBytes } from "viem";
+import { useAccount, useReadContract } from "wagmi";
 import { RocketLaunchIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import { useScaffoldWriteContract, useScaffoldEventHistory } from "~~/hooks/scaffold-eth";
+import { useScaffoldWriteContract, useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
+
+// ABI for TokenFactory config getters
+const TokenFactoryConfigABI = [
+  {
+    type: "function",
+    name: "getGraduationThreshold",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "getCooldownPeriod",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "getBuyFeeBps",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "getSellFeeBps",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "getBasePrice",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "pure",
+  },
+] as const;
+
+// Event signature for TokenLaunched(address indexed token, string name, string symbol, address indexed creator, uint256 timestamp)
+const TOKEN_LAUNCHED_TOPIC = keccak256(toBytes("TokenLaunched(address,string,string,address,uint256)"));
 
 const CreateToken: NextPage = () => {
   const router = useRouter();
-  const { address: connectedAddress, isConnected } = useAccount();
+  const { isConnected } = useAccount();
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
   const { writeContractAsync: createToken } = useScaffoldWriteContract("TokenFactory");
-
-  // Watch for TokenLaunched events
-  const { data: launchEvents } = useScaffoldEventHistory({
-    contractName: "TokenFactory",
-    eventName: "TokenLaunched",
-    fromBlock: 0n,
-    watch: true,
-    filters: { creator: connectedAddress },
+  
+  // Get TokenFactory address
+  const { data: tokenFactoryInfo } = useDeployedContractInfo({ contractName: "TokenFactory" });
+  
+  // Read config values from TokenFactory
+  const { data: basePrice } = useReadContract({
+    address: tokenFactoryInfo?.address,
+    abi: TokenFactoryConfigABI,
+    functionName: "getBasePrice",
+    query: { enabled: !!tokenFactoryInfo?.address },
   });
+
+  const { data: graduationThreshold } = useReadContract({
+    address: tokenFactoryInfo?.address,
+    abi: TokenFactoryConfigABI,
+    functionName: "getGraduationThreshold",
+    query: { enabled: !!tokenFactoryInfo?.address },
+  });
+
+  const { data: buyFeeBps } = useReadContract({
+    address: tokenFactoryInfo?.address,
+    abi: TokenFactoryConfigABI,
+    functionName: "getBuyFeeBps",
+    query: { enabled: !!tokenFactoryInfo?.address },
+  });
+
+  const { data: sellFeeBps } = useReadContract({
+    address: tokenFactoryInfo?.address,
+    abi: TokenFactoryConfigABI,
+    functionName: "getSellFeeBps",
+    query: { enabled: !!tokenFactoryInfo?.address },
+  });
+
+  const { data: cooldownPeriod } = useReadContract({
+    address: tokenFactoryInfo?.address,
+    abi: TokenFactoryConfigABI,
+    functionName: "getCooldownPeriod",
+    query: { enabled: !!tokenFactoryInfo?.address },
+  });
+
+  // Calculate display values with fallbacks
+  const basePriceDisplay = basePrice ? formatEther(basePrice) : "0.00001";
+  const graduationDisplay = graduationThreshold ? formatEther(graduationThreshold) : "...";
+  const buyFeePercent = buyFeeBps ? Number(buyFeeBps) / 100 : 1;
+  const sellFeePercent = sellFeeBps ? Number(sellFeeBps) / 100 : 2;
+  const cooldownSeconds = cooldownPeriod ? Number(cooldownPeriod) : 60;
 
   const handleCreate = async () => {
     if (!name.trim() || !symbol.trim()) {
@@ -35,24 +115,31 @@ const CreateToken: NextPage = () => {
 
     setIsCreating(true);
     try {
-      const tx = await createToken({
-        functionName: "createToken",
-        args: [name, symbol.toUpperCase()],
-      });
+      await createToken(
+        {
+          functionName: "createToken",
+          args: [name, symbol.toUpperCase()],
+        },
+        {
+          onBlockConfirmation: (receipt) => {
+            // Find TokenLaunched event - topics[1] is the indexed token address
+            const tokenLog = receipt.logs.find(
+              (log) => log.topics[0] === TOKEN_LAUNCHED_TOPIC
+            );
+
+            if (tokenLog?.topics[1]) {
+              // Extract address from 32-byte padded topic (last 40 hex chars = 20 bytes)
+              const tokenAddress = `0x${tokenLog.topics[1].slice(-40)}`;
+              router.push(`/token/${tokenAddress}`);
+            } else {
+              router.push("/");
+            }
+          },
+        }
+      );
 
       notification.success("Token created successfully!");
-
-      // Wait a moment for the event to be indexed, then redirect
-      setTimeout(() => {
-        if (launchEvents && launchEvents.length > 0) {
-          const latestToken = launchEvents[launchEvents.length - 1].args.token;
-          router.push(`/token/${latestToken}`);
-        } else {
-          router.push("/");
-        }
-      }, 2000);
     } catch (error: any) {
-      console.error("Error creating token:", error);
       notification.error(error.message || "Failed to create token");
     } finally {
       setIsCreating(false);
@@ -128,19 +215,19 @@ const CreateToken: NextPage = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-base-200 rounded-lg p-4">
                   <div className="text-sm text-base-content/60">Starting Price</div>
-                  <div className="font-mono font-semibold">0.00001 ETH</div>
+                  <div className="font-mono font-semibold">{basePriceDisplay} ETH</div>
                 </div>
                 <div className="bg-base-200 rounded-lg p-4">
                   <div className="text-sm text-base-content/60">Graduation</div>
-                  <div className="font-mono font-semibold">0.1 ETH Reserve</div>
+                  <div className="font-mono font-semibold">{graduationDisplay} ETH Reserve</div>
                 </div>
                 <div className="bg-base-200 rounded-lg p-4">
                   <div className="text-sm text-base-content/60">Buy Fee</div>
-                  <div className="font-mono font-semibold">1%</div>
+                  <div className="font-mono font-semibold">{buyFeePercent}%</div>
                 </div>
                 <div className="bg-base-200 rounded-lg p-4">
                   <div className="text-sm text-base-content/60">Sell Fee</div>
-                  <div className="font-mono font-semibold">2%</div>
+                  <div className="font-mono font-semibold">{sellFeePercent}%</div>
                 </div>
               </div>
 
@@ -152,7 +239,7 @@ const CreateToken: NextPage = () => {
                 <div>
                   <div className="font-semibold">Sniper Protection</div>
                   <div className="text-sm">
-                    For the first 60 seconds after launch, early buyers receive proportionally fewer tokens.
+                    For the first {cooldownSeconds} seconds after launch, early buyers receive proportionally fewer tokens.
                     This prevents bots from sniping the launch.
                   </div>
                 </div>

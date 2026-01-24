@@ -134,7 +134,28 @@ const LaunchTokenABI = [
   },
   {
     type: "function",
+    name: "getTokensForLiquidity",
+    inputs: [{ name: "ethAmount", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getContractTokenBalance",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "withdrawTreasury",
+    inputs: [],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "emergencyWithdraw",
     inputs: [],
     outputs: [],
     stateMutability: "nonpayable",
@@ -180,6 +201,16 @@ const LaunchTokenABI = [
     ],
     anonymous: false,
   },
+  {
+    type: "event",
+    name: "EmergencyWithdraw",
+    inputs: [
+      { name: "creator", type: "address", indexed: true, internalType: "address" },
+      { name: "ethAmount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "tokenAmount", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+    anonymous: false,
+  },
 ] as const;
 
 const externalContracts = {
@@ -203,7 +234,7 @@ export const SimplePoolABI = [
       { name: "token", type: "address", internalType: "address" },
       { name: "tokenAmount", type: "uint256", internalType: "uint256" },
     ],
-    outputs: [],
+    outputs: [{ name: "lpTokens", type: "uint256", internalType: "uint256" }],
     stateMutability: "payable",
   },
   {
@@ -225,6 +256,31 @@ export const SimplePoolABI = [
       { name: "minEthOut", type: "uint256", internalType: "uint256" },
     ],
     outputs: [{ name: "ethOut", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "addLiquidity",
+    inputs: [
+      { name: "token", type: "address", internalType: "address" },
+      { name: "minLpTokens", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "lpTokens", type: "uint256", internalType: "uint256" }],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "removeLiquidity",
+    inputs: [
+      { name: "token", type: "address", internalType: "address" },
+      { name: "lpAmount", type: "uint256", internalType: "uint256" },
+      { name: "minEthOut", type: "uint256", internalType: "uint256" },
+      { name: "minTokensOut", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [
+      { name: "ethOut", type: "uint256", internalType: "uint256" },
+      { name: "tokensOut", type: "uint256", internalType: "uint256" },
+    ],
     stateMutability: "nonpayable",
   },
   {
@@ -253,6 +309,23 @@ export const SimplePoolABI = [
   },
   {
     type: "function",
+    name: "getLiquidity",
+    inputs: [
+      { name: "token", type: "address", internalType: "address" },
+      { name: "provider", type: "address", internalType: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getTotalLiquidity",
+    inputs: [{ name: "token", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "estimateBuyOutput",
     inputs: [
       { name: "token", type: "address", internalType: "address" },
@@ -272,12 +345,53 @@ export const SimplePoolABI = [
     stateMutability: "view",
   },
   {
+    type: "function",
+    name: "estimateAddLiquidity",
+    inputs: [
+      { name: "token", type: "address", internalType: "address" },
+      { name: "ethAmount", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [
+      { name: "tokensRequired", type: "uint256", internalType: "uint256" },
+      { name: "lpTokensOut", type: "uint256", internalType: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "estimateRemoveLiquidity",
+    inputs: [
+      { name: "token", type: "address", internalType: "address" },
+      { name: "lpAmount", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [
+      { name: "ethOut", type: "uint256", internalType: "uint256" },
+      { name: "tokensOut", type: "uint256", internalType: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "tokenCreators",
+    inputs: [{ name: "token", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "emergencyDrainPool",
+    inputs: [{ name: "token", type: "address", internalType: "address" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
     type: "event",
     name: "PoolCreated",
     inputs: [
       { name: "token", type: "address", indexed: true, internalType: "address" },
       { name: "ethAmount", type: "uint256", indexed: false, internalType: "uint256" },
       { name: "tokenAmount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "lpTokens", type: "uint256", indexed: false, internalType: "uint256" },
     ],
     anonymous: false,
   },
@@ -290,6 +404,96 @@ export const SimplePoolABI = [
       { name: "amountIn", type: "uint256", indexed: false, internalType: "uint256" },
       { name: "amountOut", type: "uint256", indexed: false, internalType: "uint256" },
       { name: "fee", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "LiquidityAdded",
+    inputs: [
+      { name: "token", type: "address", indexed: true, internalType: "address" },
+      { name: "provider", type: "address", indexed: true, internalType: "address" },
+      { name: "ethAmount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "tokenAmount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "lpTokens", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "LiquidityRemoved",
+    inputs: [
+      { name: "token", type: "address", indexed: true, internalType: "address" },
+      { name: "provider", type: "address", indexed: true, internalType: "address" },
+      { name: "ethAmount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "tokenAmount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "lpBurned", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "EmergencyPoolDrain",
+    inputs: [
+      { name: "token", type: "address", indexed: true, internalType: "address" },
+      { name: "creator", type: "address", indexed: true, internalType: "address" },
+      { name: "ethAmount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "tokenAmount", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+    anonymous: false,
+  },
+] as const;
+
+/**
+ * TokenFactory ABI - for creating graduated pools
+ */
+export const TokenFactoryABI = [
+  {
+    type: "function",
+    name: "createGraduatedPool",
+    inputs: [{ name: "token", type: "address", internalType: "address" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "graduationFunds",
+    inputs: [{ name: "token", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "simplePool",
+    inputs: [],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "emergencyWithdrawGraduationFunds",
+    inputs: [{ name: "token", type: "address", internalType: "address" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "event",
+    name: "GraduatedPoolCreated",
+    inputs: [
+      { name: "token", type: "address", indexed: true, internalType: "address" },
+      { name: "pool", type: "address", indexed: true, internalType: "address" },
+      { name: "ethAmount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "tokenAmount", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "EmergencyGraduationWithdraw",
+    inputs: [
+      { name: "token", type: "address", indexed: true, internalType: "address" },
+      { name: "creator", type: "address", indexed: true, internalType: "address" },
+      { name: "amount", type: "uint256", indexed: false, internalType: "uint256" },
     ],
     anonymous: false,
   },

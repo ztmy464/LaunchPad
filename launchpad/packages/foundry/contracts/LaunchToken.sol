@@ -31,6 +31,7 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
     event TokensSold(address indexed seller, uint256 tokensIn, uint256 ethOut, uint256 fee);
     event Graduated(address indexed pool, uint256 ethLiquidity, uint256 tokenLiquidity);
     event TreasuryWithdrawn(address indexed creator, uint256 amount);
+    event EmergencyWithdraw(address indexed creator, uint256 ethAmount, uint256 tokenAmount);
 
     // ============ Errors ============
 
@@ -245,6 +246,17 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
         return (reserveBalance * 100) / BondingCurveMath.GRADUATION_THRESHOLD;
     }
 
+    /**
+     * @notice Get the tokens needed for liquidity at current price
+     * @param ethAmount Amount of ETH for liquidity
+     * @return tokensNeeded Number of tokens needed to match the current bonding curve price
+     * @dev Used by factory to calculate correct pool initialization amounts
+     */
+    function getTokensForLiquidity(uint256 ethAmount) external view returns (uint256) {
+        uint256 currentPrice = BondingCurveMath.getCurrentPrice(totalSupply());
+        return (ethAmount * 1e18) / currentPrice;
+    }
+
     // ============ Internal Functions ============
 
     /**
@@ -260,6 +272,7 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
      * @notice Graduate to Uniswap V4
      * @dev Transfers reserveBalance to factory for V4 pool creation
      *      Treasury (creator earnings) is NOT touched - creator can withdraw separately
+     *      Calculates tokens for liquidity based on final bonding curve price for price continuity
      */
     function _graduate() internal {
         graduated = true;
@@ -268,11 +281,13 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
         uint256 ethForLiquidity = reserveBalance;
         reserveBalance = 0;
 
-        // Mint tokens for liquidity pairing
-        // Use tokens held by contract (from cooldown penalties) + mint additional if needed
-        uint256 contractTokens = balanceOf(address(this));
-        uint256 tokensForLiquidity = contractTokens > 0 ? contractTokens : totalSupply() / 10;
+        // Calculate tokens for liquidity based on final bonding curve price
+        // This ensures price continuity: pool price = ethForLiquidity / tokensForLiquidity = finalPrice
+        uint256 finalPrice = BondingCurveMath.getCurrentPrice(totalSupply());
+        uint256 tokensForLiquidity = (ethForLiquidity * 1e18) / finalPrice;
 
+        // Mint tokens for liquidity (to this contract, factory will transfer them)
+        uint256 contractTokens = balanceOf(address(this));
         if (contractTokens < tokensForLiquidity) {
             _mint(address(this), tokensForLiquidity - contractTokens);
         }
@@ -332,6 +347,31 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
         if (!success) revert TransferFailed();
         
         emit TreasuryWithdrawn(creator, amount);
+    }
+
+    /**
+     * @notice Emergency withdraw all funds (for testing)
+     * @dev Drains bonding curve reserve and treasury to creator
+     */
+    function emergencyWithdraw() external nonReentrant {
+        if (msg.sender != creator) revert OnlyCreator();
+
+        uint256 ethAmount = reserveBalance + treasury;
+        uint256 tokenAmount = balanceOf(address(this));
+
+        reserveBalance = 0;
+        treasury = 0;
+
+        if (tokenAmount > 0) {
+            _transfer(address(this), creator, tokenAmount);
+        }
+
+        if (ethAmount > 0) {
+            (bool success, ) = creator.call{value: ethAmount}("");
+            if (!success) revert TransferFailed();
+        }
+
+        emit EmergencyWithdraw(creator, ethAmount, tokenAmount);
     }
 
     // ============ Receive ETH ============

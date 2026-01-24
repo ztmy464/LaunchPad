@@ -27,12 +27,14 @@ A **Scaffold-ETH 2** dApp that allows users to launch ERC-20 tokens with an auto
 2. **Test ALL phases** by buying and selling through the UI:
 
 ### Phase 1: Sniper Protection (first 60 seconds)
+
 - [ ] Buy immediately after token creation
 - [ ] Verify estimate shows reduced tokens (may show 0 early on - this is expected)
 - [ ] Confirm actual tokens received are less than post-protection
 - [ ] Try selling during this period
 
 ### Phase 2: Normal Bonding Curve Trading
+
 - [ ] Wait for sniper protection to end (60s)
 - [ ] Buy with 0.001, 0.01, 0.1 ETH - verify estimates match actual
 - [ ] Sell tokens - verify 2% fee is applied
@@ -41,17 +43,20 @@ A **Scaffold-ETH 2** dApp that allows users to launch ERC-20 tokens with an auto
 - [ ] Verify graduation progress bar updates correctly
 
 ### Phase 3: Graduation
+
 - [ ] Continue buying until reserve reaches 0.1 ETH
 - [ ] Verify status changes from "Bonding Curve" to "Graduated"
 - [ ] Confirm bonding curve buy/sell is disabled
 
 ### Phase 4: Uniswap V4 Pool
+
 - [ ] Click "Create Pool" button
 - [ ] Buy tokens from V4 pool
 - [ ] Sell tokens to V4 pool
 - [ ] Verify pool trading works correctly
 
 ### Creator Actions
+
 - [ ] Test "Withdraw" button for creator earnings
 - [ ] Verify only creator can withdraw
 
@@ -61,34 +66,45 @@ A **Scaffold-ETH 2** dApp that allows users to launch ERC-20 tokens with an auto
 
 ### Smart Contracts (`launchpad/packages/foundry/contracts/`)
 
-| File | Purpose |
-|------|---------|
-| `TokenFactory.sol` | Deploys LaunchToken proxies, manages graduation funds |
-| `LaunchToken.sol` | ERC-20 with bonding curve, fees, sniper protection, graduation logic |
-| `SimplePool.sol` | Creates Uniswap V4 pools for graduated tokens |
-| `TradeFeeHook.sol` | Uniswap V4 hook for post-graduation trading fees |
-| `libraries/BondingCurveMath.sol` | Constants and math for bonding curve calculations |
+| File                             | Purpose                                                              |
+| -------------------------------- | -------------------------------------------------------------------- |
+| `TokenFactory.sol`               | Deploys LaunchToken proxies, manages graduation funds                |
+| `LaunchToken.sol`                | ERC-20 with bonding curve, fees, sniper protection, graduation logic |
+| `SimplePool.sol`                 | Creates Uniswap V4 pools for graduated tokens                        |
+| `TradeFeeHook.sol`               | Uniswap V4 hook for post-graduation trading fees                     |
+| `libraries/BondingCurveMath.sol` | Constants and math for bonding curve calculations                    |
 
 ### Frontend (`launchpad/packages/nextjs/`)
 
-| File | Purpose |
-|------|---------|
-| `app/page.tsx` | Home page - lists all tokens, shows platform stats |
-| `app/create/page.tsx` | Token creation form |
-| `app/token/[address]/page.tsx` | Token detail page - trading UI, stats, graduation progress |
-| `contracts/externalContracts.ts` | ABI definitions for LaunchToken, TokenFactory, SimplePool |
+| File                             | Purpose                                                    |
+| -------------------------------- | ---------------------------------------------------------- |
+| `app/page.tsx`                   | Home page - lists all tokens, shows platform stats         |
+| `app/create/page.tsx`            | Token creation form                                        |
+| `app/token/[address]/page.tsx`   | Token detail page - trading UI, stats, graduation progress |
+| `contracts/externalContracts.ts` | ABI definitions for LaunchToken, TokenFactory, SimplePool  |
 
 ## Key Contract Functions
 
 **LaunchToken.sol:**
+
 - `buy()` - Buy tokens with ETH (applies fee + sniper penalty if active)
 - `sell(amount)` - Sell tokens for ETH (applies 2% fee)
 - `estimateBuy(ethAmount)` - View function for buy preview
 - `estimateSell(tokenAmount)` - View function for sell preview
 - `withdrawTreasury()` - Creator withdraws accumulated fees
 - `graduationProgress()` - Returns 0-100 based on reserveBalance/0.1 ETH
+- `getTokensForLiquidity(ethAmount)` - Calculates tokens needed for liquidity at current bonding curve price
+- `getContractTokenBalance()` - Returns tokens held by contract (for liquidity)
+
+**TokenFactory.sol:**
+
+- `createToken(name, symbol)` - Deploy new LaunchToken proxy
+- `createGraduatedPool(token)` - Create SimplePool with graduation funds and price continuity
+- `graduationFunds(token)` - View graduation ETH held for a token
+- `setSimplePool(address)` - Admin: set SimplePool address
 
 **Key State Variables:**
+
 - `reserveBalance` - ETH for V4 liquidity (graduation metric)
 - `treasury` - Creator earnings from fees
 - `totalSupply` - Tokens in circulation
@@ -103,6 +119,9 @@ A **Scaffold-ETH 2** dApp that allows users to launch ERC-20 tokens with an auto
 4. Frontend updated to show both "Bonding Curve Reserve" and "Creator Earnings" separately
 5. Fixed estimate display to show **4 decimal places** (e.g., "6.0000 NEWT" instead of "0")
 6. Updated all UI text to reference "reserve" instead of "treasury" for graduation
+7. **Fixed price continuity bug** - Pool creation now uses graduation funds and calculates correct token amounts based on final bonding curve price (ensures first pool purchase gives similar tokens to last curve purchase)
+8. Added **`createGraduatedPool(token)`** to TokenFactory - atomically creates pools with price continuity
+9. Added **`getTokensForLiquidity(ethAmount)`** to LaunchToken - calculates tokens needed for liquidity at current price
 
 ## Local Setup
 
@@ -122,8 +141,9 @@ Then open `http://localhost:3000` in browser.
 ## Known Behaviors
 
 - During sniper protection, estimates are intentionally inaccurate (anti-bot measure)
-- The "Create Pool" function currently requires manual invocation after graduation
+- The "Create Pool" function requires manual invocation after graduation, but now uses graduation funds automatically with price continuity
 - Creator can withdraw treasury (fees) at any time via the Withdraw button
+- Pool creation ensures the first pool purchase gives approximately the same tokens as the last bonding curve purchase (price continuity)
 
 ## Architecture Notes
 

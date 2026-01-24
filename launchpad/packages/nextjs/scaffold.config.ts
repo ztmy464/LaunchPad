@@ -1,7 +1,5 @@
 import * as chains from "viem/chains";
 
-
-
 export type BaseConfig = {
   targetNetworks: readonly chains.Chain[];
   pollingInterval: number;
@@ -11,16 +9,14 @@ export type BaseConfig = {
   onlyLocalBurnerWallet: boolean;
 };
 
-export type ScaffoldConfig = BaseConfig ;
+export type ScaffoldConfig = BaseConfig;
 
 export const DEFAULT_ALCHEMY_API_KEY = "cR4WnXePioePZ5fFrnSiR";
 
 const scaffoldConfig = {
   // The networks on which your DApp is live
-  // NOTE: Change to chains.base for production deployment
-  targetNetworks: [
-    chains.foundry
-  ],
+  // Production: Base Mainnet
+  targetNetworks: [chains.foundry],
   // The interval at which your front-end polls the RPC servers for new data
   pollingInterval: 3000,
   // This is ours Alchemy's default API key.
@@ -31,16 +27,16 @@ const scaffoldConfig = {
   // If you want to use a different RPC for a specific network, you can add it here.
   // The key is the chain ID, and the value is the HTTP RPC URL
   rpcOverrides: {
-    // Use Base public RPC as fallback
+    // Base mainnet RPC
     [chains.base.id]: "https://mainnet.base.org",
   },
   // This is ours WalletConnect's default project ID.
   // You can get your own at https://cloud.walletconnect.com
   // It's recommended to store it in an env variable:
   // .env.local for local testing, and in the Vercel/system env config for live apps.
-  walletConnectProjectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || '3a8170812b534d0ff9d794f19a901d64',
-  // Set to false for production to allow external wallets
-  onlyLocalBurnerWallet: true
+  walletConnectProjectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "3a8170812b534d0ff9d794f19a901d64",
+  // Production: Allow external wallets (MetaMask, WalletConnect, etc.)
+  onlyLocalBurnerWallet: false,
 } as const satisfies ScaffoldConfig;
 
 export default scaffoldConfig;

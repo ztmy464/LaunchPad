@@ -3,7 +3,11 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./LaunchToken.sol";
+import "./SimplePool.sol";
+import "./libraries/BondingCurveMath.sol";
 
 /**
  * @title TokenFactory
@@ -13,6 +17,7 @@ import "./LaunchToken.sol";
  */
 contract TokenFactory is Ownable {
     using Clones for address;
+    using SafeERC20 for IERC20;
 
     // ============ Events ============
 
@@ -29,6 +34,11 @@ contract TokenFactory is Ownable {
     event GraduationFundsReceived(address indexed token, uint256 amount);
     
     event GraduationFundsWithdrawn(address indexed token, address indexed recipient, uint256 amount);
+    
+    event GraduatedPoolCreated(address indexed token, address indexed pool, uint256 ethAmount, uint256 tokenAmount);
+    
+    event SimplePoolUpdated(address indexed oldPool, address indexed newPool);
+    event EmergencyGraduationWithdraw(address indexed token, address indexed creator, uint256 amount);
 
     // ============ Errors ============
 
@@ -38,6 +48,10 @@ contract TokenFactory is Ownable {
     error NotLaunchedToken();
     error InsufficientFunds();
     error TransferFailed();
+    error NotGraduated();
+    error PoolAlreadyExists();
+    error SimplePoolNotSet();
+    error NotTokenCreator();
 
     // ============ State Variables ============
 
@@ -58,6 +72,9 @@ contract TokenFactory is Ownable {
     
     /// @notice Mapping from token to graduation funds received
     mapping(address => uint256) public graduationFunds;
+    
+    /// @notice SimplePool contract for graduated token trading
+    address public simplePool;
 
     // ============ Constructor ============
 
@@ -230,6 +247,48 @@ contract TokenFactory is Ownable {
         }
     }
 
+    // ============ BondingCurve Constants Getters ============
+
+    /**
+     * @notice Get the graduation threshold (ETH required for graduation)
+     * @return threshold Graduation threshold in wei
+     */
+    function getGraduationThreshold() external pure returns (uint256) {
+        return BondingCurveMath.GRADUATION_THRESHOLD;
+    }
+
+    /**
+     * @notice Get the cooldown period for sniper protection
+     * @return period Cooldown period in seconds
+     */
+    function getCooldownPeriod() external pure returns (uint256) {
+        return BondingCurveMath.COOLDOWN_PERIOD;
+    }
+
+    /**
+     * @notice Get the buy fee in basis points
+     * @return feeBps Buy fee (100 = 1%)
+     */
+    function getBuyFeeBps() external pure returns (uint256) {
+        return BondingCurveMath.BUY_FEE_BPS;
+    }
+
+    /**
+     * @notice Get the sell fee in basis points
+     * @return feeBps Sell fee (200 = 2%)
+     */
+    function getSellFeeBps() external pure returns (uint256) {
+        return BondingCurveMath.SELL_FEE_BPS;
+    }
+
+    /**
+     * @notice Get the base price per token
+     * @return price Base price in wei
+     */
+    function getBasePrice() external pure returns (uint256) {
+        return BondingCurveMath.BASE_PRICE;
+    }
+
     // ============ Admin Functions ============
 
     /**
@@ -264,11 +323,101 @@ contract TokenFactory is Ownable {
     }
 
     /**
+     * @notice Emergency withdraw graduation funds (for testing)
+     * @param token Token whose graduation funds to withdraw
+     * @dev Only callable by the token's creator
+     */
+    function emergencyWithdrawGraduationFunds(address token) external {
+        if (!isLaunchedToken[token]) revert NotLaunchedToken();
+        address tokenCreator = LaunchToken(payable(token)).creator();
+        if (msg.sender != tokenCreator) revert NotTokenCreator();
+
+        uint256 amount = graduationFunds[token];
+        if (amount == 0) revert InsufficientFunds();
+
+        graduationFunds[token] = 0;
+
+        (bool success, ) = tokenCreator.call{value: amount}("");
+        if (!success) revert TransferFailed();
+
+        emit EmergencyGraduationWithdraw(token, tokenCreator, amount);
+    }
+
+    /**
      * @notice Get total graduation funds held by factory
      * @return total Total ETH held for all graduated tokens
      */
     function totalGraduationFunds() external view returns (uint256 total) {
         return address(this).balance;
+    }
+
+    /**
+     * @notice Set the SimplePool contract address
+     * @param _simplePool Address of the SimplePool contract
+     */
+    function setSimplePool(address _simplePool) external onlyOwner {
+        address oldPool = simplePool;
+        simplePool = _simplePool;
+        emit SimplePoolUpdated(oldPool, _simplePool);
+    }
+
+    // ============ Pool Creation ============
+
+    /**
+     * @notice Create a liquidity pool for a graduated token using stored graduation funds
+     * @param token Address of the graduated token
+     * @dev Anyone can call this for a graduated token - uses graduation funds and
+     *      calculates correct token amount based on final bonding curve price
+     *      This ensures price continuity between bonding curve and pool
+     */
+    function createGraduatedPool(address token) external {
+        if (!isLaunchedToken[token]) revert NotLaunchedToken();
+        if (simplePool == address(0)) revert SimplePoolNotSet();
+        
+        LaunchToken launchToken = LaunchToken(payable(token));
+        
+        // Verify token has graduated
+        if (!launchToken.graduated()) revert NotGraduated();
+        
+        // Check pool doesn't already exist
+        if (SimplePool(payable(simplePool)).hasPool(token)) revert PoolAlreadyExists();
+        
+        // Get graduation funds
+        uint256 ethForLiquidity = graduationFunds[token];
+        if (ethForLiquidity == 0) revert InsufficientFunds();
+        
+        // Calculate tokens needed for price continuity
+        uint256 tokensForLiquidity = launchToken.getTokensForLiquidity(ethForLiquidity);
+        
+        // Get tokens held by the LaunchToken contract (minted during graduation)
+        uint256 availableTokens = launchToken.getContractTokenBalance();
+        if (availableTokens < tokensForLiquidity) {
+            // Use whatever tokens are available if not enough
+            tokensForLiquidity = availableTokens;
+        }
+        
+        // Clear graduation funds
+        graduationFunds[token] = 0;
+        
+        // Have LaunchToken approve this factory to take tokens
+        launchToken.approveForMigration(address(this), tokensForLiquidity);
+        
+        // Transfer tokens from LaunchToken contract to this factory
+        IERC20(token).safeTransferFrom(address(launchToken), address(this), tokensForLiquidity);
+        
+        // Approve SimplePool to take tokens from this factory
+        IERC20(token).forceApprove(simplePool, tokensForLiquidity);
+        
+        // Get the original token creator for emergency drain rights
+        address tokenCreator = launchToken.creator();
+        
+        // Create the pool with graduation funds and tokens, passing original creator
+        SimplePool(payable(simplePool)).createPoolWithCreator{value: ethForLiquidity}(token, tokensForLiquidity, tokenCreator);
+        
+        // Set the pool address on the token
+        launchToken.setUniswapPool(simplePool);
+        
+        emit GraduatedPoolCreated(token, simplePool, ethForLiquidity, tokensForLiquidity);
     }
 
     // ============ Receive ETH ============

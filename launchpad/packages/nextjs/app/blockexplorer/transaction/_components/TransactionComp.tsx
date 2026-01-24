@@ -4,20 +4,22 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Address } from "@scaffold-ui/components";
 import { Hash, Transaction, TransactionReceipt, formatEther, formatUnits } from "viem";
-import { hardhat } from "viem/chains";
+import { hardhat, foundry } from "viem/chains";
 import { usePublicClient } from "wagmi";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
 import { decodeTransactionData, getFunctionDetails } from "~~/utils/scaffold-eth";
 import { replacer } from "~~/utils/scaffold-eth/common";
 
 const TransactionComp = ({ txHash }: { txHash: Hash }) => {
-  const client = usePublicClient({ chainId: hardhat.id });
+  const { targetNetwork } = useTargetNetwork();
+  const client = usePublicClient({ chainId: targetNetwork.id });
   const router = useRouter();
   const [transaction, setTransaction] = useState<Transaction>();
   const [receipt, setReceipt] = useState<TransactionReceipt>();
   const [functionCalled, setFunctionCalled] = useState<string>();
-
-  const { targetNetwork } = useTargetNetwork();
+  
+  // Check if we're on a local network for internal block explorer links
+  const isLocalNetwork = targetNetwork.id === hardhat.id || targetNetwork.id === foundry.id;
 
   useEffect(() => {
     if (txHash && client) {
@@ -69,7 +71,7 @@ const TransactionComp = ({ txHash }: { txHash: Hash }) => {
                     format="long"
                     onlyEnsOrAddress
                     blockExplorerAddressLink={
-                      targetNetwork.id === hardhat.id ? `/blockexplorer/address/${transaction.from}` : undefined
+                      isLocalNetwork ? `/blockexplorer/address/${transaction.from}` : undefined
                     }
                   />
                 </td>
@@ -86,7 +88,7 @@ const TransactionComp = ({ txHash }: { txHash: Hash }) => {
                         format="long"
                         onlyEnsOrAddress
                         blockExplorerAddressLink={
-                          targetNetwork.id === hardhat.id ? `/blockexplorer/address/${transaction.to}` : undefined
+                          isLocalNetwork ? `/blockexplorer/address/${transaction.to}` : undefined
                         }
                       />
                     )
@@ -98,7 +100,7 @@ const TransactionComp = ({ txHash }: { txHash: Hash }) => {
                         format="long"
                         onlyEnsOrAddress
                         blockExplorerAddressLink={
-                          targetNetwork.id === hardhat.id
+                          isLocalNetwork
                             ? `/blockexplorer/address/${receipt.contractAddress}`
                             : undefined
                         }

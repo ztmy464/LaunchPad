@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import "./DeployHelpers.s.sol";
 import "../contracts/TokenFactory.sol";
 import "../contracts/TradeFeeHook.sol";
+import "../contracts/SimplePool.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 
@@ -50,8 +51,21 @@ contract DeployLaunchpad is ScaffoldETHDeploy {
         console.log("LaunchToken implementation at:", factory.tokenImplementation());
         console.log("TradeFeeHook address:", hookAddress);
 
+        // Deploy SimplePool for graduated token trading
+        SimplePool simplePool = new SimplePool();
+        console.log("SimplePool deployed at:", address(simplePool));
+
+        // Link SimplePool to TokenFactory
+        factory.setSimplePool(address(simplePool));
+        console.log("SimplePool linked to TokenFactory");
+
+        // Set TokenFactory as authorized factory on SimplePool
+        simplePool.setAuthorizedFactory(address(factory));
+        console.log("TokenFactory authorized on SimplePool");
+
         // Record deployments for frontend
         deployments.push(Deployment({name: "TokenFactory", addr: address(factory)}));
+        deployments.push(Deployment({name: "SimplePool", addr: address(simplePool)}));
     }
 
     function _getPoolManager() internal view returns (address) {

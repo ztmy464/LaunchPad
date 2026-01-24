@@ -49,31 +49,82 @@ contract V4SwapHelper is IUnlockCallback {
     error InvalidPool();
     error InsufficientOutput();
     error TransferFailed();
+    error Unauthorized();
+    error ZeroAddress();
 
     // ============ State ============
 
     IPoolManager public immutable poolManager;
 
+    /// @notice Admin address (can register pools)
+    address public admin;
+
+    /// @notice Authorized registrars (factories, etc.)
+    mapping(address => bool) public authorizedRegistrars;
+
     /// @notice Registered pools (token => PoolKey)
     mapping(address => PoolKey) public tokenPools;
     mapping(address => bool) public hasPool;
+
+    // ============ Events ============
+
+    event PoolRegistered(address indexed token, bytes32 indexed poolId);
+    event RegistrarUpdated(address indexed registrar, bool authorized);
+    event AdminTransferred(address indexed oldAdmin, address indexed newAdmin);
+
+    // ============ Modifiers ============
+
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert Unauthorized();
+        _;
+    }
+
+    modifier onlyAuthorized() {
+        if (msg.sender != admin && !authorizedRegistrars[msg.sender]) revert Unauthorized();
+        _;
+    }
 
     // ============ Constructor ============
 
     constructor(IPoolManager _poolManager) {
         poolManager = _poolManager;
+        admin = msg.sender;
+    }
+
+    // ============ Admin Functions ============
+
+    /**
+     * @notice Set authorized registrar status
+     * @param registrar Address to authorize/deauthorize
+     * @param authorized Whether to authorize
+     */
+    function setAuthorizedRegistrar(address registrar, bool authorized) external onlyAdmin {
+        authorizedRegistrars[registrar] = authorized;
+        emit RegistrarUpdated(registrar, authorized);
+    }
+
+    /**
+     * @notice Transfer admin role
+     * @param newAdmin New admin address
+     */
+    function transferAdmin(address newAdmin) external onlyAdmin {
+        if (newAdmin == address(0)) revert ZeroAddress();
+        address oldAdmin = admin;
+        admin = newAdmin;
+        emit AdminTransferred(oldAdmin, newAdmin);
     }
 
     // ============ Pool Registration ============
 
     /**
-     * @notice Register a token's V4 pool
+     * @notice Register a token's V4 pool (only admin or authorized registrars)
      * @param token Token address
      * @param key Pool key
      */
-    function registerPool(address token, PoolKey calldata key) external {
+    function registerPool(address token, PoolKey calldata key) external onlyAuthorized {
         tokenPools[token] = key;
         hasPool[token] = true;
+        emit PoolRegistered(token, PoolId.unwrap(key.toId()));
     }
 
     // ============ Swap Functions ============

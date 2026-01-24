@@ -33,8 +33,8 @@ library BondingCurveMath {
     uint256 public constant COOLDOWN_PERIOD = 60;
 
     /// @notice Reserve balance threshold for graduation to Uniswap V4
-    /// @dev Graduation triggers when reserveBalance >= 0.1 ETH
-    uint256 public constant GRADUATION_THRESHOLD = 0.1 ether;
+    /// @dev Graduation triggers when reserveBalance >= 0.004 ETH (~$10 on Base)
+    uint256 public constant GRADUATION_THRESHOLD = 0.004 ether;
 
     /**
      * @notice Calculate the current price per token at a given supply
@@ -101,6 +101,12 @@ library BondingCurveMath {
         // n = (sqrt(discriminant) - b) / (2*a)
         // Note: sqrtDisc > b always because c > 0
         uint256 nTokens = (sqrtDisc - b) / (2 * a);
+
+        // For sub-token amounts (less than 1 whole token), use linear approximation
+        if (nTokens == 0) {
+            uint256 currentPrice = BASE_PRICE + (SLOPE * s);
+            return (ethAmount * ONE_TOKEN) / currentPrice;
+        }
 
         // Convert back to wei (18 decimals)
         return nTokens * ONE_TOKEN;

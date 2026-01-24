@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import { PaginationButton, SearchBar, TransactionsTable } from "./_components";
 import type { NextPage } from "next";
-import { hardhat } from "viem/chains";
+import { hardhat, foundry } from "viem/chains";
 import { useFetchBlocks } from "~~/hooks/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
-import { notification } from "~~/utils/scaffold-eth";
 
 const BlockExplorer: NextPage = () => {
   const { blocks, transactionReceipts, currentPage, totalBlocks, setCurrentPage, error } = useFetchBlocks();
@@ -15,61 +14,61 @@ const BlockExplorer: NextPage = () => {
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    if (targetNetwork.id !== hardhat.id) {
-      setIsLocalNetwork(false);
-    }
+    // Check if we're on a local development network
+    const isLocal = targetNetwork.id === hardhat.id || targetNetwork.id === foundry.id;
+    setIsLocalNetwork(isLocal);
   }, [targetNetwork.id]);
 
   useEffect(() => {
-    if (targetNetwork.id === hardhat.id && error) {
+    if (isLocalNetwork && error) {
       setHasError(true);
     }
-  }, [targetNetwork.id, error]);
+  }, [isLocalNetwork, error]);
 
-  useEffect(() => {
-    if (!isLocalNetwork) {
-      notification.error(
-        <>
-          <p className="font-bold mt-0 mb-1">
-            <code className="italic bg-base-300 text-base font-bold"> targetNetwork </code> is not localhost
+  // For production networks, show redirect to external explorer
+  if (!isLocalNetwork) {
+    return (
+      <div className="container mx-auto my-10">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+          <h1 className="text-3xl font-bold mb-4">Block Explorer</h1>
+          <p className="text-lg mb-6 max-w-md">
+            You are connected to <span className="font-semibold">{targetNetwork.name}</span>.
           </p>
-          <p className="m-0">
-            - You are on <code className="italic bg-base-300 text-base font-bold">{targetNetwork.name}</code> .This
-            block explorer is only for <code className="italic bg-base-300 text-base font-bold">localhost</code>.
-          </p>
-          <p className="mt-1 break-normal">
-            - You can use{" "}
-            <a className="text-accent" href={targetNetwork.blockExplorers?.default.url}>
-              {targetNetwork.blockExplorers?.default.name}
-            </a>{" "}
-            instead
-          </p>
-        </>,
-      );
-    }
-  }, [
-    isLocalNetwork,
-    targetNetwork.blockExplorers?.default.name,
-    targetNetwork.blockExplorers?.default.url,
-    targetNetwork.name,
-  ]);
+          {targetNetwork.blockExplorers?.default.url ? (
+            <div className="space-y-4">
+              <p className="text-neutral">Use the search bar below or visit the official explorer:</p>
+              <SearchBar />
+              <a
+                href={targetNetwork.blockExplorers.default.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary btn-lg"
+              >
+                Open {targetNetwork.blockExplorers.default.name}
+              </a>
+            </div>
+          ) : (
+            <p className="text-neutral">No block explorer available for this network.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    if (hasError) {
-      notification.error(
-        <>
-          <p className="font-bold mt-0 mb-1">Cannot connect to local provider</p>
-          <p className="m-0">
-            - Did you forget to run <code className="italic bg-base-300 text-base font-bold">yarn chain</code> ?
+  // Show error state for local network connection issues
+  if (hasError) {
+    return (
+      <div className="container mx-auto my-10">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+          <h1 className="text-3xl font-bold mb-4">Connection Error</h1>
+          <p className="text-lg mb-4">Cannot connect to local blockchain.</p>
+          <p className="text-neutral">
+            Make sure you have run <code className="bg-base-300 px-2 py-1 rounded">yarn chain</code>
           </p>
-          <p className="mt-1 break-normal">
-            - Or you can change <code className="italic bg-base-300 text-base font-bold">targetNetwork</code> in{" "}
-            <code className="italic bg-base-300 text-base font-bold">scaffold.config.ts</code>
-          </p>
-        </>,
-      );
-    }
-  }, [hasError]);
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto my-10">

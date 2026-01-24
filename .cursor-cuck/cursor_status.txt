@@ -1,0 +1,2 @@
+done
+Fixed small buy issue: Added fractional token support in BondingCurveMath.calculateTokensForETH(). Buying with 0.00001 ETH now works and returns ~0.99 tokens instead of failing with ZeroAmount() error.

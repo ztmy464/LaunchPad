@@ -1,13 +1,38 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { NextPage } from "next";
 import { formatEther } from "viem";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { RocketLaunchIcon, PlusCircleIcon } from "@heroicons/react/24/outline";
-import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
+import { PlusCircleIcon, RocketLaunchIcon } from "@heroicons/react/24/outline";
 import { LaunchTokenABI } from "~~/contracts/externalContracts";
+import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaffold-eth";
+
+// ABI for TokenFactory config getters
+const TokenFactoryConfigABI = [
+  {
+    type: "function",
+    name: "getGraduationThreshold",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "getBuyFeeBps",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "getSellFeeBps",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "pure",
+  },
+] as const;
 
 interface TokenInfo {
   address: `0x${string}`;
@@ -19,8 +44,8 @@ interface TokenInfo {
   currentPrice: bigint;
 }
 
-const TokenCard = ({ token }: { token: TokenInfo }) => {
-  const progressPercent = Number((token.treasury * 100n) / BigInt(0.1 * 1e18));
+const TokenCard = ({ token, graduationThreshold }: { token: TokenInfo; graduationThreshold: bigint }) => {
+  const progressPercent = graduationThreshold > 0n ? Number((token.treasury * 100n) / graduationThreshold) : 0;
 
   return (
     <Link href={`/token/${token.address}`}>
@@ -62,11 +87,7 @@ const TokenCard = ({ token }: { token: TokenInfo }) => {
                 <span>Progress to Uniswap</span>
                 <span>{Math.min(progressPercent, 100)}%</span>
               </div>
-              <progress
-                className="progress progress-primary w-full"
-                value={Math.min(progressPercent, 100)}
-                max="100"
-              />
+              <progress className="progress progress-primary w-full" value={Math.min(progressPercent, 100)} max="100" />
             </div>
           )}
         </div>
@@ -78,6 +99,36 @@ const TokenCard = ({ token }: { token: TokenInfo }) => {
 const Home: NextPage = () => {
   const [tokens, setTokens] = useState<TokenInfo[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Get TokenFactory address
+  const { data: tokenFactoryInfo } = useDeployedContractInfo({ contractName: "TokenFactory" });
+
+  // Read config values from TokenFactory
+  const { data: graduationThreshold } = useReadContract({
+    address: tokenFactoryInfo?.address,
+    abi: TokenFactoryConfigABI,
+    functionName: "getGraduationThreshold",
+    query: { enabled: !!tokenFactoryInfo?.address },
+  });
+
+  const { data: buyFeeBps } = useReadContract({
+    address: tokenFactoryInfo?.address,
+    abi: TokenFactoryConfigABI,
+    functionName: "getBuyFeeBps",
+    query: { enabled: !!tokenFactoryInfo?.address },
+  });
+
+  const { data: sellFeeBps } = useReadContract({
+    address: tokenFactoryInfo?.address,
+    abi: TokenFactoryConfigABI,
+    functionName: "getSellFeeBps",
+    query: { enabled: !!tokenFactoryInfo?.address },
+  });
+
+  // Calculate display values with fallbacks
+  const graduationDisplay = graduationThreshold ? formatEther(graduationThreshold) : "...";
+  const buyFeePercent = buyFeeBps ? Number(buyFeeBps) / 100 : 1;
+  const sellFeePercent = sellFeeBps ? Number(sellFeeBps) / 100 : 2;
 
   // Get total number of tokens
   const { data: totalTokens } = useScaffoldReadContract({
@@ -103,7 +154,7 @@ const Home: NextPage = () => {
   });
 
   // Get current prices for all tokens
-  const priceReads = (tokenAddresses || []).map((addr) => ({
+  const priceReads = (tokenAddresses || []).map(addr => ({
     address: addr,
     abi: LaunchTokenABI,
     functionName: "getCurrentPrice" as const,
@@ -121,13 +172,13 @@ const Home: NextPage = () => {
     if (tokenAddresses && tokensInfo && prices) {
       const [names, symbols, supplies, treasuries, graduatedFlags] = tokensInfo;
       const tokenList: TokenInfo[] = tokenAddresses.map((addr, i) => ({
-        address: addr,
+        address: addr as `0x${string}`,
         name: names[i],
         symbol: symbols[i],
         totalSupply: supplies[i],
         treasury: treasuries[i],
         graduated: graduatedFlags[i],
-        currentPrice: prices[i]?.result as bigint || 0n,
+        currentPrice: (prices[i]?.result as bigint) || 0n,
       }));
       setTokens(tokenList);
       setLoading(false);
@@ -147,8 +198,8 @@ const Home: NextPage = () => {
                 Token <span className="text-primary">Launchpad</span>
               </h1>
               <p className="text-lg text-base-content/70 mb-6">
-                Launch your token with a bonding curve. No initial liquidity needed.
-                As people buy, the reserve fills up. At 0.1 ETH, your token graduates to Uniswap V4.
+                Launch your token with a bonding curve. No initial liquidity needed. As people buy, the reserve fills
+                up. At {graduationDisplay} ETH, your token graduates to Uniswap V4.
               </p>
               <div className="flex gap-4">
                 <Link href="/create" className="btn btn-primary btn-lg gap-2">
@@ -165,12 +216,12 @@ const Home: NextPage = () => {
               </div>
               <div className="stat">
                 <div className="stat-title">Buy Fee</div>
-                <div className="stat-value text-secondary">1%</div>
+                <div className="stat-value text-secondary">{buyFeePercent}%</div>
                 <div className="stat-desc">Goes to treasury</div>
               </div>
               <div className="stat">
                 <div className="stat-title">Sell Fee</div>
-                <div className="stat-value text-accent">2%</div>
+                <div className="stat-value text-accent">{sellFeePercent}%</div>
                 <div className="stat-desc">Goes to treasury</div>
               </div>
             </div>
@@ -202,7 +253,9 @@ const Home: NextPage = () => {
                 3
               </div>
               <h3 className="font-semibold mb-2">Build Reserve</h3>
-              <p className="text-sm text-base-content/60">Reserve grows. At 0.1 ETH, graduation begins.</p>
+              <p className="text-sm text-base-content/60">
+                Reserve grows. At {graduationDisplay} ETH, graduation begins.
+              </p>
             </div>
             <div className="text-center">
               <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-3 text-primary-content font-bold">
@@ -240,8 +293,12 @@ const Home: NextPage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tokens.map((token) => (
-              <TokenCard key={token.address} token={token} />
+            {tokens.map(token => (
+              <TokenCard
+                key={token.address}
+                token={token}
+                graduationThreshold={graduationThreshold || 0n}
+              />
             ))}
           </div>
         )}

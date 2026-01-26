@@ -16,43 +16,34 @@ import {
   BeakerIcon,
   ClockIcon,
   ExclamationTriangleIcon,
-  MinusIcon,
   PlusIcon,
   RocketLaunchIcon,
 } from "@heroicons/react/24/outline";
-import { ERC20ApproveABI, LaunchTokenABI, SimplePoolABI, TokenFactoryABI } from "~~/contracts/externalContracts";
+import { ERC20ApproveABI, LaunchTokenABI, CreatorFeeRouterABI, TokenFactoryABI, UniswapV2RouterABI } from "~~/contracts/externalContracts";
 import { useDeployedContractInfo, useTargetNetwork } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 
-// Pool Swap Interface Component for Graduated Tokens
+// Pool Swap Interface Component for Graduated Tokens (V2 + Fee Router)
 const PoolSwapInterface = ({
   tokenAddress,
   symbol,
   userBalance,
   refetchAllData,
-  buyFeePercent,
-  sellFeePercent,
 }: {
   tokenAddress: `0x${string}`;
   symbol: string;
   userBalance: bigint | undefined;
   refetchAllData: () => void;
-  buyFeePercent: number;
-  sellFeePercent: number;
 }) => {
   const { address: userAddress, isConnected } = useAccount();
   const { targetNetwork } = useTargetNetwork();
-  const [mainTab, setMainTab] = useState<"swap" | "liquidity">("swap");
   const [swapTab, setSwapTab] = useState<"buy" | "sell">("buy");
-  const [liquidityTab, setLiquidityTab] = useState<"add" | "remove">("add");
   const [swapAmount, setSwapAmount] = useState("0.0001");
-  const [liquidityAmount, setLiquidityAmount] = useState("");
   const [isSwapping, setIsSwapping] = useState(false);
-  const [isLiquidityAction, setIsLiquidityAction] = useState(false);
 
-  // Get SimplePool address
-  const { data: simplePoolInfo } = useDeployedContractInfo({ contractName: "SimplePool" });
-  const simplePoolAddress = simplePoolInfo?.address;
+  // Get CreatorFeeRouter address
+  const { data: feeRouterInfo } = useDeployedContractInfo({ contractName: "CreatorFeeRouter" });
+  const feeRouterAddress = feeRouterInfo?.address;
 
   // Get TokenFactory address for creating graduated pools
   const { data: tokenFactoryInfo } = useDeployedContractInfo({ contractName: "TokenFactory" });
@@ -72,103 +63,72 @@ const PoolSwapInterface = ({
     query: { enabled: !!tokenFactoryAddress, refetchInterval: 3000 },
   });
 
-  // Check if pool exists
-  const { data: hasPool, refetch: refetchHasPool } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
-    functionName: "hasPool",
+  // Check if V2 pair exists via factory
+  const { data: hasPair, refetch: refetchHasPair } = useReadContract({
+    address: tokenFactoryAddress,
+    abi: TokenFactoryABI,
+    functionName: "hasPair",
     args: [tokenAddress],
-    query: { enabled: !!simplePoolAddress, refetchInterval: 3000 },
+    query: { enabled: !!tokenFactoryAddress, refetchInterval: 3000 },
   });
 
-  // Get pool reserves
+  // Get pair address
+  const { data: pairAddress } = useReadContract({
+    address: tokenFactoryAddress,
+    abi: TokenFactoryABI,
+    functionName: "getPair",
+    args: [tokenAddress],
+    query: { enabled: !!tokenFactoryAddress && !!hasPair, refetchInterval: 3000 },
+  });
+
+  // Get pool reserves via fee router
   const { data: reserves, refetch: refetchReserves } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
+    address: feeRouterAddress,
+    abi: CreatorFeeRouterABI,
     functionName: "getReserves",
     args: [tokenAddress],
-    query: { enabled: !!simplePoolAddress && !!hasPool, refetchInterval: 3000 },
-  });
-
-  // Get user's LP balance
-  const { data: userLpBalance, refetch: refetchUserLpBalance } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
-    functionName: "getLiquidity",
-    args: [tokenAddress, userAddress || "0x0"],
-    query: { enabled: !!simplePoolAddress && !!hasPool && !!userAddress, refetchInterval: 3000 },
-  });
-
-  // Get total LP supply
-  const { data: totalLpSupply, refetch: refetchTotalLpSupply } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
-    functionName: "getTotalLiquidity",
-    args: [tokenAddress],
-    query: { enabled: !!simplePoolAddress && !!hasPool, refetchInterval: 3000 },
+    query: { enabled: !!feeRouterAddress && !!hasPair, refetchInterval: 3000 },
   });
 
   // Estimate buy output
   const buyAmountWei = swapTab === "buy" && swapAmount ? parseEther(swapAmount) : 0n;
   const { data: estimatedBuyTokens } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
+    address: feeRouterAddress,
+    abi: CreatorFeeRouterABI,
     functionName: "estimateBuyOutput",
     args: [tokenAddress, buyAmountWei],
-    query: { enabled: !!simplePoolAddress && !!hasPool && buyAmountWei > 0n },
+    query: { enabled: !!feeRouterAddress && !!hasPair && buyAmountWei > 0n },
   });
 
   // Estimate sell output
   const sellAmountWei = swapTab === "sell" && swapAmount ? parseEther(swapAmount) : 0n;
   const { data: estimatedSellEth } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
+    address: feeRouterAddress,
+    abi: CreatorFeeRouterABI,
     functionName: "estimateSellOutput",
     args: [tokenAddress, sellAmountWei],
-    query: { enabled: !!simplePoolAddress && !!hasPool && sellAmountWei > 0n },
+    query: { enabled: !!feeRouterAddress && !!hasPair && sellAmountWei > 0n },
   });
 
-  // Estimate add liquidity
-  const addLiquidityAmountWei = liquidityTab === "add" && liquidityAmount ? parseEther(liquidityAmount) : 0n;
-  const { data: estimatedAddLiquidity } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
-    functionName: "estimateAddLiquidity",
-    args: [tokenAddress, addLiquidityAmountWei],
-    query: { enabled: !!simplePoolAddress && !!hasPool && addLiquidityAmountWei > 0n },
-  });
-
-  // Estimate remove liquidity
-  const removeLiquidityAmountWei = liquidityTab === "remove" && liquidityAmount ? parseEther(liquidityAmount) : 0n;
-  const { data: estimatedRemoveLiquidity } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
-    functionName: "estimateRemoveLiquidity",
-    args: [tokenAddress, removeLiquidityAmountWei],
-    query: { enabled: !!simplePoolAddress && !!hasPool && removeLiquidityAmountWei > 0n },
-  });
-
-  // Check token allowance for SimplePool
+  // Check token allowance for FeeRouter
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: tokenAddress,
     abi: ERC20ApproveABI,
     functionName: "allowance",
-    args: [userAddress || "0x0", simplePoolAddress || "0x0"],
-    query: { enabled: !!userAddress && !!simplePoolAddress },
+    args: [userAddress || "0x0", feeRouterAddress || "0x0"],
+    query: { enabled: !!userAddress && !!feeRouterAddress },
   });
 
   const { writeContractAsync } = useWriteContract();
 
-  // Helper to refetch all liquidity-related data
-  const refetchLiquidityData = () => {
+  // Helper to refetch data
+  const refetchSwapData = () => {
     refetchReserves();
-    refetchUserLpBalance();
-    refetchTotalLpSupply();
     refetchEthBalance();
     refetchAllData();
   };
 
-  // Create Pool using factory's graduation funds (ensures price continuity)
+  // Create V2 Pool using factory's graduation funds
   const handleCreatePool = async () => {
     if (!tokenFactoryAddress) {
       notification.error("TokenFactory not deployed");
@@ -182,7 +142,7 @@ const PoolSwapInterface = ({
 
     setIsSwapping(true);
     try {
-      notification.info("Creating pool with graduation funds...");
+      notification.info("Creating Uniswap V2 pool...");
       await writeContractAsync({
         address: tokenFactoryAddress,
         abi: TokenFactoryABI,
@@ -190,8 +150,8 @@ const PoolSwapInterface = ({
         args: [tokenAddress],
       });
 
-      notification.success("Pool created successfully with price continuity!");
-      refetchHasPool();
+      notification.success("V2 Pool created! Token is now tradeable everywhere.");
+      refetchHasPair();
       refetchReserves();
       refetchGraduationFunds();
       refetchAllData();
@@ -202,9 +162,9 @@ const PoolSwapInterface = ({
     }
   };
 
-  // Buy tokens
+  // Buy tokens via FeeRouter
   const handleBuy = async () => {
-    if (!simplePoolAddress || !swapAmount) {
+    if (!feeRouterAddress || !swapAmount) {
       notification.error("Please enter an amount");
       return;
     }
@@ -212,18 +172,19 @@ const PoolSwapInterface = ({
     setIsSwapping(true);
     try {
       const ethAmount = parseEther(swapAmount);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300); // 5 min deadline
 
       await writeContractAsync({
-        address: simplePoolAddress,
-        abi: SimplePoolABI,
-        functionName: "buyTokens",
-        args: [tokenAddress, 0n], // 0 minOut for testing
+        address: feeRouterAddress,
+        abi: CreatorFeeRouterABI,
+        functionName: "buyTokensWithFee",
+        args: [tokenAddress, 0n, deadline], // 0 minOut for testing
         value: ethAmount,
       });
 
-      notification.success("Buy successful!");
+      notification.success("Buy successful! 2% fee collected for creator.");
       setSwapAmount("");
-      refetchLiquidityData();
+      refetchSwapData();
     } catch (error: any) {
       notification.error(error.message || "Buy failed");
     } finally {
@@ -231,9 +192,9 @@ const PoolSwapInterface = ({
     }
   };
 
-  // Sell tokens
+  // Sell tokens via FeeRouter
   const handleSell = async () => {
-    if (!simplePoolAddress || !swapAmount) {
+    if (!feeRouterAddress || !swapAmount) {
       notification.error("Please enter an amount");
       return;
     }
@@ -241,6 +202,7 @@ const PoolSwapInterface = ({
     setIsSwapping(true);
     try {
       const tokenAmount = parseEther(swapAmount);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300); // 5 min deadline
 
       // Approve if needed
       if ((allowance || 0n) < tokenAmount) {
@@ -249,21 +211,21 @@ const PoolSwapInterface = ({
           address: tokenAddress,
           abi: ERC20ApproveABI,
           functionName: "approve",
-          args: [simplePoolAddress, maxUint256],
+          args: [feeRouterAddress, maxUint256],
         });
         await refetchAllowance();
       }
 
       await writeContractAsync({
-        address: simplePoolAddress,
-        abi: SimplePoolABI,
-        functionName: "sellTokens",
-        args: [tokenAddress, tokenAmount, 0n], // 0 minOut for testing
+        address: feeRouterAddress,
+        abi: CreatorFeeRouterABI,
+        functionName: "sellTokensWithFee",
+        args: [tokenAddress, tokenAmount, 0n, deadline], // 0 minOut for testing
       });
 
-      notification.success("Sell successful!");
+      notification.success("Sell successful! 2% fee collected for creator.");
       setSwapAmount("");
-      refetchLiquidityData();
+      refetchSwapData();
     } catch (error: any) {
       notification.error(error.message || "Sell failed");
     } finally {
@@ -271,101 +233,15 @@ const PoolSwapInterface = ({
     }
   };
 
-  // Add liquidity
-  const handleAddLiquidity = async () => {
-    if (!simplePoolAddress || !liquidityAmount) {
-      notification.error("Please enter an amount");
-      return;
-    }
-
-    const ethAmount = parseEther(liquidityAmount);
-    const tokensRequired = estimatedAddLiquidity?.[0] || 0n;
-
-    if (tokensRequired === 0n) {
-      notification.error("Could not calculate required tokens");
-      return;
-    }
-
-    // Check if user has enough tokens
-    if ((userBalance || 0n) < tokensRequired) {
-      notification.error(`Insufficient token balance. Need ${(Number(tokensRequired) / 1e18).toFixed(4)} ${symbol}`);
-      return;
-    }
-
-    setIsLiquidityAction(true);
-    try {
-      // Approve tokens if needed
-      if ((allowance || 0n) < tokensRequired) {
-        notification.info("Approving tokens...");
-        await writeContractAsync({
-          address: tokenAddress,
-          abi: ERC20ApproveABI,
-          functionName: "approve",
-          args: [simplePoolAddress, maxUint256],
-        });
-        await refetchAllowance();
-      }
-
-      await writeContractAsync({
-        address: simplePoolAddress,
-        abi: SimplePoolABI,
-        functionName: "addLiquidity",
-        args: [tokenAddress, 0n], // 0 minLP for testing
-        value: ethAmount,
-      });
-
-      notification.success("Liquidity added successfully!");
-      setLiquidityAmount("");
-      refetchLiquidityData();
-    } catch (error: any) {
-      notification.error(error.message || "Failed to add liquidity");
-    } finally {
-      setIsLiquidityAction(false);
-    }
-  };
-
-  // Remove liquidity
-  const handleRemoveLiquidity = async () => {
-    if (!simplePoolAddress || !liquidityAmount) {
-      notification.error("Please enter an amount");
-      return;
-    }
-
-    const lpAmount = parseEther(liquidityAmount);
-
-    if ((userLpBalance || 0n) < lpAmount) {
-      notification.error("Insufficient LP balance");
-      return;
-    }
-
-    setIsLiquidityAction(true);
-    try {
-      await writeContractAsync({
-        address: simplePoolAddress,
-        abi: SimplePoolABI,
-        functionName: "removeLiquidity",
-        args: [tokenAddress, lpAmount, 0n, 0n], // 0 minimums for testing
-      });
-
-      notification.success("Liquidity removed successfully!");
-      setLiquidityAmount("");
-      refetchLiquidityData();
-    } catch (error: any) {
-      notification.error(error.message || "Failed to remove liquidity");
-    } finally {
-      setIsLiquidityAction(false);
-    }
-  };
-
-  // If SimplePool not deployed
-  if (!simplePoolAddress) {
+  // If FeeRouter not deployed
+  if (!feeRouterAddress) {
     return (
       <div className="space-y-4">
         <div className="alert alert-success">
           <RocketLaunchIcon className="w-5 h-5" />
           <div>
             <div className="font-semibold">Graduated!</div>
-            <div className="text-sm">Pool contracts not deployed yet.</div>
+            <div className="text-sm">Fee Router not deployed yet.</div>
           </div>
         </div>
       </div>
@@ -373,14 +249,14 @@ const PoolSwapInterface = ({
   }
 
   // If pool doesn't exist yet
-  if (!hasPool) {
+  if (!hasPair) {
     return (
       <div className="space-y-4">
         <div className="alert alert-success">
           <RocketLaunchIcon className="w-5 h-5" />
           <div>
             <div className="font-semibold">Graduated!</div>
-            <div className="text-sm">Create a liquidity pool to enable trading.</div>
+            <div className="text-sm">Create a Uniswap V2 pool to enable trading everywhere.</div>
           </div>
         </div>
 
@@ -390,7 +266,7 @@ const PoolSwapInterface = ({
             <div className="text-xs text-base-content/60 mb-1">Graduation Funds Available</div>
             <div className="font-mono font-semibold text-primary">{formatEther(graduationFunds)} ETH</div>
             <div className="text-xs text-base-content/50 mt-1">
-              Will be paired with tokens at the final bonding curve price
+              Will create a Uniswap V2 pool at the final bonding curve price
             </div>
           </div>
         )}
@@ -405,17 +281,17 @@ const PoolSwapInterface = ({
               {isSwapping ? (
                 <>
                   <span className="loading loading-spinner"></span>
-                  Creating Pool...
+                  Creating V2 Pool...
                 </>
               ) : (
                 <>
                   <PlusIcon className="w-5 h-5" />
-                  Create Pool
+                  Create Uniswap V2 Pool
                 </>
               )}
             </button>
             <p className="text-xs text-center text-base-content/60">
-              Creates pool with graduation funds at the final bonding curve price for seamless trading
+              Creates a real Uniswap V2 pool. Token will be tradeable on Uniswap, Rainbow, and all DEX aggregators!
             </p>
           </>
         ) : (
@@ -425,30 +301,22 @@ const PoolSwapInterface = ({
     );
   }
 
-  // Pool exists - show swap/liquidity interface
+  // Pool exists - show swap interface
   const [ethReserve, tokenReserve] = reserves || [0n, 0n];
-  const poolSharePercent =
-    totalLpSupply && totalLpSupply > 0n && userLpBalance ? Number((userLpBalance * 10000n) / totalLpSupply) / 100 : 0;
 
-  // Calculate user's share of pool in ETH and tokens
-  const userEthShare =
-    totalLpSupply && totalLpSupply > 0n && userLpBalance ? (userLpBalance * ethReserve) / totalLpSupply : 0n;
-  const userTokenShare =
-    totalLpSupply && totalLpSupply > 0n && userLpBalance ? (userLpBalance * tokenReserve) / totalLpSupply : 0n;
-
-  // Build Uniswap URL based on chain
+  // Build Uniswap URL
   const getUniswapUrl = () => {
-    // Map chain IDs to Uniswap chain names
     const chainNames: Record<number, string> = {
       1: "ethereum",
       8453: "base",
       10: "optimism",
       42161: "arbitrum",
       137: "polygon",
+      31337: "base", // Local fork shows as base
     };
     const chainName = chainNames[targetNetwork.id];
     if (!chainName) return null;
-    return `https://app.uniswap.org/explore/tokens/${chainName}/${tokenAddress}`;
+    return `https://app.uniswap.org/swap?chain=${chainName}&inputCurrency=ETH&outputCurrency=${tokenAddress}`;
   };
   
   const uniswapUrl = getUniswapUrl();
@@ -458,10 +326,8 @@ const PoolSwapInterface = ({
       <div className="alert alert-success">
         <RocketLaunchIcon className="w-5 h-5" />
         <div className="flex-1">
-          <div className="font-semibold">Trading on Pool!</div>
-          <div className="text-sm">
-            {buyFeePercent}% buy fee / {sellFeePercent}% sell fee
-          </div>
+          <div className="font-semibold">Trading on Uniswap V2!</div>
+          <div className="text-sm">2% creator fee when trading here</div>
         </div>
         {uniswapUrl && (
           <a
@@ -469,6 +335,7 @@ const PoolSwapInterface = ({
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-sm btn-ghost gap-1"
+            title="Trade without creator fee on Uniswap"
           >
             <ArrowTopRightOnSquareIcon className="w-4 h-4" />
             Uniswap
@@ -478,7 +345,19 @@ const PoolSwapInterface = ({
 
       {/* Pool Stats */}
       <div className="bg-base-200 rounded-lg p-3">
-        <div className="text-xs text-base-content/60 mb-1">Pool Reserves</div>
+        <div className="flex justify-between items-center mb-1">
+          <div className="text-xs text-base-content/60">V2 Pool Reserves</div>
+          {pairAddress && (
+            <a
+              href={`https://basescan.org/address/${pairAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline"
+            >
+              View Pair
+            </a>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-2 text-sm font-mono">
           <div>{formatEther(ethReserve).slice(0, 8)} ETH</div>
           <div>
@@ -487,376 +366,135 @@ const PoolSwapInterface = ({
         </div>
       </div>
 
+      {/* Trading notice */}
+      <div className="bg-base-200/50 rounded-lg p-2 text-xs text-center text-base-content/60">
+        Trade here = 2% creator fee | Trade on Uniswap = no creator fee (just 0.3% LP fee)
+      </div>
+
       {!isConnected ? (
         <div className="alert alert-warning">Connect wallet to trade</div>
       ) : (
         <>
-          {/* Main Tab Buttons: Swap / Liquidity */}
-          <div className="tabs tabs-boxed">
+          {/* Swap Tabs */}
+          <div className="flex gap-2">
             <button
-              className={`tab flex-1 ${mainTab === "swap" ? "tab-active" : ""}`}
+              className={`flex-1 py-3 px-4 rounded-lg font-semibold text-lg transition-all ${
+                swapTab === "buy"
+                  ? "bg-primary text-primary-content shadow-lg"
+                  : "bg-base-200 text-base-content/60 hover:bg-base-300"
+              }`}
               onClick={() => {
-                setMainTab("swap");
+                setSwapTab("buy");
                 setSwapAmount("");
               }}
             >
-              <ArrowsRightLeftIcon className="w-4 h-4 mr-1" />
-              Swap
+              Buy
             </button>
             <button
-              className={`tab flex-1 ${mainTab === "liquidity" ? "tab-active" : ""}`}
+              className={`flex-1 py-3 px-4 rounded-lg font-semibold text-lg transition-all ${
+                swapTab === "sell"
+                  ? "bg-secondary text-secondary-content shadow-lg"
+                  : "bg-base-200 text-base-content/60 hover:bg-base-300"
+              }`}
               onClick={() => {
-                setMainTab("liquidity");
-                setLiquidityAmount("");
+                setSwapTab("sell");
+                setSwapAmount("");
               }}
             >
-              <BeakerIcon className="w-4 h-4 mr-1" />
-              Liquidity
+              Sell
             </button>
           </div>
 
-          {mainTab === "swap" ? (
-            <>
-              {/* Swap Sub-tabs: Buy / Sell */}
-              <div className="tabs tabs-boxed tabs-sm">
+          {/* Amount Input */}
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">{swapTab === "buy" ? "ETH Amount" : "Token Amount"}</span>
+              <span className="label-text-alt">
+                {swapTab === "buy"
+                  ? `Balance: ${ethBalance ? formatEther(ethBalance.value).slice(0, 8) : "0"} ETH`
+                  : `Balance: ${userBalance ? Number(userBalance / BigInt(1e18)).toLocaleString() : "0"}`}
+              </span>
+            </label>
+            <input
+              type="number"
+              placeholder="0.0"
+              className="input input-bordered w-full font-mono"
+              value={swapAmount}
+              onChange={e => setSwapAmount(e.target.value)}
+              disabled={isSwapping}
+              step="0.001"
+              min="0"
+            />
+          </div>
+
+          {/* Quick Amount Buttons */}
+          <div className="flex gap-2">
+            {swapTab === "buy" ? (
+              <>
+                <button className="btn btn-xs btn-outline" onClick={() => setSwapAmount("0.0001")}>
+                  0.0001
+                </button>
+                <button className="btn btn-xs btn-outline" onClick={() => setSwapAmount("0.001")}>
+                  0.001
+                </button>
+                <button className="btn btn-xs btn-outline" onClick={() => setSwapAmount("0.01")}>
+                  0.01
+                </button>
+              </>
+            ) : (
+              <>
                 <button
-                  className={`tab flex-1 ${swapTab === "buy" ? "tab-active" : ""}`}
-                  onClick={() => {
-                    setSwapTab("buy");
-                    setSwapAmount("");
-                  }}
+                  className="btn btn-xs btn-outline"
+                  onClick={() => userBalance && setSwapAmount(formatEther(userBalance / 4n))}
                 >
-                  Buy
+                  25%
                 </button>
                 <button
-                  className={`tab flex-1 ${swapTab === "sell" ? "tab-active" : ""}`}
-                  onClick={() => {
-                    setSwapTab("sell");
-                    setSwapAmount("");
-                  }}
+                  className="btn btn-xs btn-outline"
+                  onClick={() => userBalance && setSwapAmount(formatEther(userBalance / 2n))}
                 >
-                  Sell
-                </button>
-              </div>
-
-              {/* Amount Input */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">{swapTab === "buy" ? "ETH Amount" : "Token Amount"}</span>
-                  <span className="label-text-alt">
-                    {swapTab === "buy"
-                      ? `Balance: ${ethBalance ? formatEther(ethBalance.value).slice(0, 8) : "0"} ETH`
-                      : `Balance: ${userBalance ? Number(userBalance / BigInt(1e18)).toLocaleString() : "0"}`}
-                  </span>
-                </label>
-                <input
-                  type="number"
-                  placeholder="0.0"
-                  className="input input-bordered w-full font-mono"
-                  value={swapAmount}
-                  onChange={e => setSwapAmount(e.target.value)}
-                  disabled={isSwapping}
-                  step="0.001"
-                  min="0"
-                />
-              </div>
-
-              {/* Quick Amount Buttons */}
-              <div className="flex gap-2">
-                {swapTab === "buy" ? (
-                  <>
-                    <button className="btn btn-xs btn-outline" onClick={() => setSwapAmount("0.0001")}>
-                      0.0001
-                    </button>
-                    <button className="btn btn-xs btn-outline" onClick={() => setSwapAmount("0.0005")}>
-                      0.0005
-                    </button>
-                    <button className="btn btn-xs btn-outline" onClick={() => setSwapAmount("0.001")}>
-                      0.001
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      className="btn btn-xs btn-outline"
-                      onClick={() => userBalance && setSwapAmount(formatEther(userBalance / 4n))}
-                    >
-                      25%
-                    </button>
-                    <button
-                      className="btn btn-xs btn-outline"
-                      onClick={() => userBalance && setSwapAmount(formatEther(userBalance / 2n))}
-                    >
-                      50%
-                    </button>
-                    <button
-                      className="btn btn-xs btn-outline"
-                      onClick={() => userBalance && setSwapAmount(formatEther(userBalance))}
-                    >
-                      Max
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Estimate */}
-              <div className="bg-base-200 rounded-lg p-3">
-                <div className="text-sm text-base-content/60">You will receive (approx)</div>
-                <div className="font-mono font-semibold text-lg">
-                  {swapTab === "buy"
-                    ? `${estimatedBuyTokens !== undefined ? (Number(estimatedBuyTokens) / 1e18).toFixed(4) : "0"} ${symbol}`
-                    : `${estimatedSellEth !== undefined ? Number(formatEther(estimatedSellEth)).toFixed(10).replace(/\.?0+$/, "") : "0"} ETH`}
-                </div>
-                <div className="text-xs text-base-content/60 mt-1">
-                  {swapTab === "buy" ? `${buyFeePercent}% fee applied` : `${sellFeePercent}% fee applied`}
-                </div>
-              </div>
-
-              {/* Action Button */}
-              <button
-                className={`btn btn-lg w-full ${swapTab === "buy" ? "btn-primary" : "btn-secondary"}`}
-                onClick={swapTab === "buy" ? handleBuy : handleSell}
-                disabled={isSwapping || !swapAmount || parseFloat(swapAmount) <= 0}
-              >
-                {isSwapping ? (
-                  <>
-                    <span className="loading loading-spinner"></span>
-                    Swapping...
-                  </>
-                ) : swapTab === "buy" ? (
-                  `Buy ${symbol}`
-                ) : (
-                  `Sell ${symbol}`
-                )}
-              </button>
-            </>
-          ) : (
-            <>
-              {/* LP Position Display */}
-              {userLpBalance && userLpBalance > 0n && (
-                <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-lg p-3 border border-primary/20">
-                  <div className="text-xs text-base-content/60 mb-2">Your LP Position</div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <div className="text-xs text-base-content/50">LP Tokens</div>
-                      <div className="font-mono font-semibold">{(Number(userLpBalance) / 1e18).toFixed(4)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-base-content/50">Pool Share</div>
-                      <div className="font-mono font-semibold text-primary">{poolSharePercent.toFixed(2)}%</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-base-content/50">ETH Value</div>
-                      <div className="font-mono">{formatEther(userEthShare).slice(0, 8)} ETH</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-base-content/50">{symbol} Value</div>
-                      <div className="font-mono">{(Number(userTokenShare) / 1e18).toFixed(2)}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Liquidity Sub-tabs: Add / Remove */}
-              <div className="tabs tabs-boxed tabs-sm">
-                <button
-                  className={`tab flex-1 gap-1 ${liquidityTab === "add" ? "tab-active" : ""}`}
-                  onClick={() => {
-                    setLiquidityTab("add");
-                    setLiquidityAmount("");
-                  }}
-                >
-                  <PlusIcon className="w-3 h-3" />
-                  Add
+                  50%
                 </button>
                 <button
-                  className={`tab flex-1 gap-1 ${liquidityTab === "remove" ? "tab-active" : ""}`}
-                  onClick={() => {
-                    setLiquidityTab("remove");
-                    setLiquidityAmount("");
-                  }}
+                  className="btn btn-xs btn-outline"
+                  onClick={() => userBalance && setSwapAmount(formatEther(userBalance))}
                 >
-                  <MinusIcon className="w-3 h-3" />
-                  Remove
+                  Max
                 </button>
-              </div>
+              </>
+            )}
+          </div>
 
-              {liquidityTab === "add" ? (
-                <>
-                  {/* Add Liquidity */}
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">ETH Amount</span>
-                      <span className="label-text-alt">
-                        Balance: {ethBalance ? formatEther(ethBalance.value).slice(0, 8) : "0"} ETH
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="0.0"
-                      className="input input-bordered w-full font-mono"
-                      value={liquidityAmount}
-                      onChange={e => setLiquidityAmount(e.target.value)}
-                      disabled={isLiquidityAction}
-                      step="0.001"
-                      min="0"
-                    />
-                  </div>
+          {/* Estimate */}
+          <div className="bg-base-200 rounded-lg p-3">
+            <div className="text-sm text-base-content/60">You will receive (approx)</div>
+            <div className="font-mono font-semibold text-lg">
+              {swapTab === "buy"
+                ? `${estimatedBuyTokens !== undefined ? (Number(estimatedBuyTokens) / 1e18).toFixed(4) : "0"} ${symbol}`
+                : `${estimatedSellEth !== undefined ? Number(formatEther(estimatedSellEth)).toFixed(10).replace(/\.?0+$/, "") : "0"} ETH`}
+            </div>
+            <div className="text-xs text-base-content/60 mt-1">
+              2% creator fee included
+            </div>
+          </div>
 
-                  <div className="flex gap-2">
-                    <button className="btn btn-xs btn-outline" onClick={() => setLiquidityAmount("0.0001")}>
-                      0.0001
-                    </button>
-                    <button className="btn btn-xs btn-outline" onClick={() => setLiquidityAmount("0.0005")}>
-                      0.0005
-                    </button>
-                    <button className="btn btn-xs btn-outline" onClick={() => setLiquidityAmount("0.05")}>
-                      0.05
-                    </button>
-                  </div>
-
-                  {/* Estimate for Add */}
-                  <div className="bg-base-200 rounded-lg p-3">
-                    <div className="text-sm text-base-content/60 mb-2">You will deposit</div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <div className="text-xs text-base-content/50">ETH</div>
-                        <div className="font-mono font-semibold">{liquidityAmount || "0"}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-base-content/50">{symbol} Required</div>
-                        <div className="font-mono font-semibold">
-                          {estimatedAddLiquidity?.[0] !== undefined
-                            ? (Number(estimatedAddLiquidity[0]) / 1e18).toFixed(4)
-                            : "0"}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="divider my-2"></div>
-                    <div className="text-sm text-base-content/60">You will receive</div>
-                    <div className="font-mono font-semibold text-primary">
-                      {estimatedAddLiquidity?.[1] !== undefined
-                        ? (Number(estimatedAddLiquidity[1]) / 1e18).toFixed(4)
-                        : "0"}{" "}
-                      LP Tokens
-                    </div>
-                  </div>
-
-                  <button
-                    className="btn btn-lg w-full btn-primary"
-                    onClick={handleAddLiquidity}
-                    disabled={isLiquidityAction || !liquidityAmount || parseFloat(liquidityAmount) <= 0}
-                  >
-                    {isLiquidityAction ? (
-                      <>
-                        <span className="loading loading-spinner"></span>
-                        Adding Liquidity...
-                      </>
-                    ) : (
-                      <>
-                        <PlusIcon className="w-5 h-5" />
-                        Add Liquidity
-                      </>
-                    )}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {/* Remove Liquidity */}
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">LP Tokens to Remove</span>
-                      <span className="label-text-alt">
-                        Balance: {userLpBalance ? (Number(userLpBalance) / 1e18).toFixed(4) : "0"}
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="0.0"
-                      className="input input-bordered w-full font-mono"
-                      value={liquidityAmount}
-                      onChange={e => setLiquidityAmount(e.target.value)}
-                      disabled={isLiquidityAction}
-                      step="0.0001"
-                      min="0"
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      className="btn btn-xs btn-outline"
-                      onClick={() => userLpBalance && setLiquidityAmount(formatEther(userLpBalance / 4n))}
-                    >
-                      25%
-                    </button>
-                    <button
-                      className="btn btn-xs btn-outline"
-                      onClick={() => userLpBalance && setLiquidityAmount(formatEther(userLpBalance / 2n))}
-                    >
-                      50%
-                    </button>
-                    <button
-                      className="btn btn-xs btn-outline"
-                      onClick={() => userLpBalance && setLiquidityAmount(formatEther(userLpBalance))}
-                    >
-                      Max
-                    </button>
-                  </div>
-
-                  {/* Estimate for Remove */}
-                  <div className="bg-base-200 rounded-lg p-3">
-                    <div className="text-sm text-base-content/60 mb-2">You will receive</div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <div className="text-xs text-base-content/50">ETH</div>
-                        <div className="font-mono font-semibold">
-                          {estimatedRemoveLiquidity?.[0] !== undefined
-                            ? Number(formatEther(estimatedRemoveLiquidity[0])).toFixed(6)
-                            : "0"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-base-content/50">{symbol}</div>
-                        <div className="font-mono font-semibold">
-                          {estimatedRemoveLiquidity?.[1] !== undefined
-                            ? (Number(estimatedRemoveLiquidity[1]) / 1e18).toFixed(4)
-                            : "0"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    className="btn btn-lg w-full btn-secondary"
-                    onClick={handleRemoveLiquidity}
-                    disabled={
-                      isLiquidityAction ||
-                      !liquidityAmount ||
-                      parseFloat(liquidityAmount) <= 0 ||
-                      !userLpBalance ||
-                      userLpBalance === 0n
-                    }
-                  >
-                    {isLiquidityAction ? (
-                      <>
-                        <span className="loading loading-spinner"></span>
-                        Removing Liquidity...
-                      </>
-                    ) : (
-                      <>
-                        <MinusIcon className="w-5 h-5" />
-                        Remove Liquidity
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
-
-              <p className="text-xs text-center text-base-content/60">
-                Add liquidity to earn fees from every swap. Your share grows as fees accumulate.
-              </p>
-            </>
-          )}
+          {/* Action Button */}
+          <button
+            className={`btn btn-lg w-full ${swapTab === "buy" ? "btn-primary" : "btn-secondary"}`}
+            onClick={swapTab === "buy" ? handleBuy : handleSell}
+            disabled={isSwapping || !swapAmount || parseFloat(swapAmount) <= 0}
+          >
+            {isSwapping ? (
+              <>
+                <span className="loading loading-spinner"></span>
+                Swapping...
+              </>
+            ) : swapTab === "buy" ? (
+              `Buy ${symbol}`
+            ) : (
+              `Sell ${symbol}`
+            )}
+          </button>
         </>
       )}
     </div>
@@ -872,8 +510,10 @@ const TokenPage: NextPage = () => {
   const [amount, setAmount] = useState("0.0001");
   const [isTransacting, setIsTransacting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [isWithdrawingFees, setIsWithdrawingFees] = useState(false);
   const [showRugModal, setShowRugModal] = useState(false);
   const [isRugging, setIsRugging] = useState(false);
+  const [isTestingLiquidity, setIsTestingLiquidity] = useState(false);
 
   // Token data reads with auto-refresh
   const { data: name } = useReadContract({
@@ -936,13 +576,20 @@ const TokenPage: NextPage = () => {
     query: { refetchInterval: 1000 },
   });
 
+  // Read expected V2 pair address (for security test)
+  const { data: expectedV2Pair } = useReadContract({
+    address: tokenAddress,
+    abi: LaunchTokenABI,
+    functionName: "expectedV2Pair",
+  });
+
   // Read config values from TokenFactory (uses deployed contract info)
   const { data: tokenFactoryInfo } = useDeployedContractInfo({ contractName: "TokenFactory" });
   const tokenFactoryAddress = tokenFactoryInfo?.address;
 
-  // Read SimplePool info
-  const { data: simplePoolInfo } = useDeployedContractInfo({ contractName: "SimplePool" });
-  const simplePoolAddress = simplePoolInfo?.address;
+  // Read CreatorFeeRouter info
+  const { data: feeRouterInfo } = useDeployedContractInfo({ contractName: "CreatorFeeRouter" });
+  const feeRouterAddress = feeRouterInfo?.address;
 
   // Read graduation funds from factory (for post-graduation rug)
   const { data: graduationFunds, refetch: refetchGraduationFunds } = useReadContract({
@@ -953,31 +600,57 @@ const TokenPage: NextPage = () => {
     query: { enabled: !!tokenFactoryAddress, refetchInterval: 3000 },
   });
 
-  // Check if pool exists
-  const { data: hasPool, refetch: refetchHasPool } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
-    functionName: "hasPool",
-    args: [tokenAddress],
-    query: { enabled: !!simplePoolAddress, refetchInterval: 3000 },
+  // Read V2 Router address from factory (for security test)
+  const { data: v2RouterAddress } = useReadContract({
+    address: tokenFactoryAddress,
+    abi: TokenFactoryABI,
+    functionName: "v2Router",
+    query: { enabled: !!tokenFactoryAddress },
   });
 
-  // Get pool reserves (for pool rug)
+  // Check if V2 pair exists via factory
+  const { data: hasPool, refetch: refetchHasPool } = useReadContract({
+    address: tokenFactoryAddress,
+    abi: TokenFactoryABI,
+    functionName: "hasPair",
+    args: [tokenAddress],
+    query: { enabled: !!tokenFactoryAddress, refetchInterval: 3000 },
+  });
+
+  // Get pool reserves via fee router (for display)
   const { data: poolReserves, refetch: refetchPoolReserves } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
+    address: feeRouterAddress,
+    abi: CreatorFeeRouterABI,
     functionName: "getReserves",
     args: [tokenAddress],
-    query: { enabled: !!simplePoolAddress && !!hasPool, refetchInterval: 3000 },
+    query: { enabled: !!feeRouterAddress && !!hasPool, refetchInterval: 3000 },
   });
 
-  // Get pool creator (to verify rug permissions)
+  // Get token creator from fee router
   const { data: poolCreator } = useReadContract({
-    address: simplePoolAddress,
-    abi: SimplePoolABI,
-    functionName: "tokenCreators",
+    address: feeRouterAddress,
+    abi: CreatorFeeRouterABI,
+    functionName: "getCreator",
     args: [tokenAddress],
-    query: { enabled: !!simplePoolAddress && !!hasPool },
+    query: { enabled: !!feeRouterAddress && !!hasPool },
+  });
+
+  // Get accumulated fees from CreatorFeeRouter (unified fee tracking)
+  const { data: accumulatedFees, refetch: refetchAccumulatedFees } = useReadContract({
+    address: feeRouterAddress,
+    abi: CreatorFeeRouterABI,
+    functionName: "accumulatedFees",
+    args: [tokenAddress],
+    query: { enabled: !!feeRouterAddress, refetchInterval: 3000 },
+  });
+
+  // Check if token is registered with fee router
+  const { data: isTokenRegistered } = useReadContract({
+    address: feeRouterAddress,
+    abi: CreatorFeeRouterABI,
+    functionName: "isRegistered",
+    args: [tokenAddress],
+    query: { enabled: !!feeRouterAddress },
   });
 
   const { data: graduationThreshold } = useReadContract({
@@ -1050,6 +723,7 @@ const TokenPage: NextPage = () => {
     refetchGraduationFunds();
     refetchHasPool();
     refetchPoolReserves();
+    refetchAccumulatedFees();
   };
 
   // Estimate functions
@@ -1145,6 +819,31 @@ const TokenPage: NextPage = () => {
     }
   };
 
+  // Withdraw accumulated fees from CreatorFeeRouter
+  const handleWithdrawFees = async () => {
+    if (!feeRouterAddress) return;
+    if (!accumulatedFees || accumulatedFees === 0n) {
+      notification.error("No fees to withdraw");
+      return;
+    }
+
+    setIsWithdrawingFees(true);
+    try {
+      await writeContractAsync({
+        address: feeRouterAddress,
+        abi: CreatorFeeRouterABI,
+        functionName: "withdrawFees",
+        args: [tokenAddress],
+      });
+      notification.success("Fees withdrawn successfully!");
+      setTimeout(refetchAllData, 500);
+    } catch (error: any) {
+      notification.error(error.message || "Failed to withdraw fees");
+    } finally {
+      setIsWithdrawingFees(false);
+    }
+  };
+
   // Rug handler - drains all funds based on token phase
   const handleRug = async () => {
     setIsRugging(true);
@@ -1171,18 +870,18 @@ const TokenPage: NextPage = () => {
         });
         notification.success("Graduation funds drained!");
       } else if (hasPool) {
-        // Pool active: drain the pool
-        if (!simplePoolAddress) {
-          notification.error("SimplePool address not found");
+        // V2 Pool active: drain the pool liquidity
+        if (!tokenFactoryAddress) {
+          notification.error("Factory address not found");
           return;
         }
         await writeContractAsync({
-          address: simplePoolAddress,
-          abi: SimplePoolABI,
-          functionName: "emergencyDrainPool",
+          address: tokenFactoryAddress,
+          abi: TokenFactoryABI,
+          functionName: "rugPool",
           args: [tokenAddress],
         });
-        notification.success("Pool drained!");
+        notification.success("Pool rugged! Liquidity drained to creator.");
       } else {
         notification.error("No funds to rug");
       }
@@ -1198,6 +897,57 @@ const TokenPage: NextPage = () => {
       notification.error(error.message || "Rug failed");
     } finally {
       setIsRugging(false);
+    }
+  };
+
+  // Test function to verify V2 pair transfer blocking
+  const handleTestAddLiquidity = async () => {
+    if (!userBalance || userBalance === 0n) {
+      notification.error("You need some tokens to test");
+      return;
+    }
+    if (!v2RouterAddress) {
+      notification.error("V2 Router not configured");
+      return;
+    }
+
+    setIsTestingLiquidity(true);
+    try {
+      // First approve V2 Router to spend tokens
+      const testTokenAmount = userBalance / 10n; // Use 10% of balance
+      notification.info("Approving tokens for V2 Router...");
+      
+      await writeContractAsync({
+        address: tokenAddress,
+        abi: ERC20ApproveABI,
+        functionName: "approve",
+        args: [v2RouterAddress, testTokenAmount],
+      });
+
+      notification.info("Attempting to add liquidity (this should fail before graduation)...");
+      
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+      
+      // This should fail with TransferToPoolBlocked error if security fix is working
+      await writeContractAsync({
+        address: v2RouterAddress as `0x${string}`,
+        abi: UniswapV2RouterABI,
+        functionName: "addLiquidityETH",
+        args: [tokenAddress, testTokenAmount, 0n, 0n, userAddress!, deadline],
+        value: parseEther("0.0001"),
+      });
+
+      // If we get here, the security fix is NOT working
+      notification.error("SECURITY ISSUE: Transfer to V2 pair was NOT blocked!");
+    } catch (error: any) {
+      // Check if the error is the expected TransferToPoolBlocked error
+      if (error.message?.includes("TransferToPoolBlocked") || error.message?.includes("execution reverted")) {
+        notification.success("Security test PASSED! Transfer to V2 pair was correctly blocked.");
+      } else {
+        notification.warning(`Test result: ${error.message}`);
+      }
+    } finally {
+      setIsTestingLiquidity(false);
     }
   };
 
@@ -1221,9 +971,9 @@ const TokenPage: NextPage = () => {
         Back to Tokens
       </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="flex flex-col gap-6">
         {/* Token Info Card */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6">
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
               <div className="flex items-center justify-between">
@@ -1267,36 +1017,54 @@ const TokenPage: NextPage = () => {
                 </div>
               </div>
 
-              {/* Reserve & Earnings - show both values */}
+              {/* Reserve & Fees - show both values */}
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div className="bg-base-200 rounded-lg p-3">
                   <div className="text-xs text-base-content/60">Bonding Curve Reserve</div>
                   <div className="font-mono font-semibold text-primary">
                     {reserveBalance ? formatEther(reserveBalance) : "0"} ETH
                   </div>
-                  <div className="text-xs text-base-content/50 mt-1">Used for V4 liquidity at graduation</div>
+                  <div className="text-xs text-base-content/50 mt-1">Used for V2 liquidity at graduation</div>
                 </div>
-                <div className="bg-base-200 rounded-lg p-3">
-                  <div className="text-xs text-base-content/60">Creator Earnings</div>
+                <div className="bg-gradient-to-br from-success/10 to-primary/10 rounded-lg p-3 border border-success/20">
+                  <div className="text-xs text-base-content/60">Creator Fees</div>
                   <div className="font-mono font-semibold text-success">
-                    {treasury ? formatEther(treasury) : "0"} ETH
+                    {accumulatedFees ? formatEther(accumulatedFees) : "0"} ETH
                   </div>
                   <div className="text-xs text-base-content/50 mt-1">
                     From {buyFeePercent}% buy / {sellFeePercent}% sell fees
                   </div>
-                  {isCreator && treasury && treasury > 0n && (
+                  {isCreator && accumulatedFees && accumulatedFees > 0n && (
                     <button
                       className="btn btn-success btn-xs mt-2 gap-1"
-                      onClick={handleWithdrawTreasury}
-                      disabled={isWithdrawing}
+                      onClick={handleWithdrawFees}
+                      disabled={isWithdrawingFees}
                     >
-                      {isWithdrawing ? (
+                      {isWithdrawingFees ? (
                         <span className="loading loading-spinner loading-xs"></span>
                       ) : (
                         <BanknotesIcon className="w-3 h-3" />
                       )}
                       Withdraw
                     </button>
+                  )}
+                  {/* Legacy treasury withdrawal for old tokens */}
+                  {isCreator && treasury && treasury > 0n && (
+                    <div className="mt-2 pt-2 border-t border-base-300">
+                      <div className="text-xs text-base-content/50">Legacy fees: {formatEther(treasury)} ETH</div>
+                      <button
+                        className="btn btn-outline btn-xs mt-1 gap-1"
+                        onClick={handleWithdrawTreasury}
+                        disabled={isWithdrawing}
+                      >
+                        {isWithdrawing ? (
+                          <span className="loading loading-spinner loading-xs"></span>
+                        ) : (
+                          <BanknotesIcon className="w-3 h-3" />
+                        )}
+                        Withdraw Legacy
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1359,8 +1127,6 @@ const TokenPage: NextPage = () => {
                 symbol={symbol || "TOKEN"}
                 userBalance={userBalance}
                 refetchAllData={refetchAllData}
-                buyFeePercent={buyFeePercent}
-                sellFeePercent={sellFeePercent}
               />
             ) : !isConnected ? (
               <div className="alert alert-warning">
@@ -1368,9 +1134,13 @@ const TokenPage: NextPage = () => {
               </div>
             ) : (
               <>
-                <div className="tabs tabs-boxed mb-4">
+                <div className="flex gap-2 mb-4">
                   <button
-                    className={`tab flex-1 ${activeTab === "buy" ? "tab-active" : ""}`}
+                    className={`flex-1 py-3 px-4 rounded-lg font-semibold text-lg transition-all ${
+                      activeTab === "buy"
+                        ? "bg-primary text-primary-content shadow-lg"
+                        : "bg-base-200 text-base-content/60 hover:bg-base-300"
+                    }`}
                     onClick={() => {
                       setActiveTab("buy");
                       setAmount("");
@@ -1379,7 +1149,11 @@ const TokenPage: NextPage = () => {
                     Buy
                   </button>
                   <button
-                    className={`tab flex-1 ${activeTab === "sell" ? "tab-active" : ""}`}
+                    className={`flex-1 py-3 px-4 rounded-lg font-semibold text-lg transition-all ${
+                      activeTab === "sell"
+                        ? "bg-secondary text-secondary-content shadow-lg"
+                        : "bg-base-200 text-base-content/60 hover:bg-base-300"
+                    }`}
                     onClick={() => {
                       setActiveTab("sell");
                       setAmount("");
@@ -1491,6 +1265,56 @@ const TokenPage: NextPage = () => {
           }
         />
       </div>
+
+      {/* Security Test - Only visible to creator, only before graduation */}
+      {isCreator && !graduated && (
+        <div className="mt-6">
+          <div className="card bg-info/10 border-2 border-info shadow-xl">
+            <div className="card-body">
+              <h3 className="card-title text-info gap-2">
+                <BeakerIcon className="w-6 h-6" />
+                Security Test: V2 Pair Transfer Blocking
+              </h3>
+              <p className="text-sm text-base-content/70">
+                Test that tokens cannot be transferred to the V2 pool address before graduation.
+                This prevents front-running attacks on pool creation.
+              </p>
+
+              {/* Show expected V2 pair address */}
+              <div className="bg-base-200 rounded-lg p-3 mt-2">
+                <div className="text-xs text-base-content/60">Expected V2 Pair Address</div>
+                <div className="font-mono text-sm break-all">
+                  {expectedV2Pair || "Loading..."}
+                </div>
+                <div className="text-xs text-base-content/50 mt-1">
+                  Transfers to this address are blocked until graduation
+                </div>
+              </div>
+
+              <button
+                className="btn btn-info btn-lg w-full mt-4 gap-2"
+                onClick={handleTestAddLiquidity}
+                disabled={isTestingLiquidity || !userBalance || userBalance === 0n}
+              >
+                {isTestingLiquidity ? (
+                  <>
+                    <span className="loading loading-spinner"></span>
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <BeakerIcon className="w-5 h-5" />
+                    Try Add Liquidity (Should Fail)
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-center text-base-content/60 mt-2">
+                This will attempt to add liquidity directly to V2. It should fail with "TransferToPoolBlocked" error.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rug Button - Only visible to creator */}
       {isCreator && (

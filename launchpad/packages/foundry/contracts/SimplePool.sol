@@ -77,6 +77,9 @@ contract SimplePool is ReentrancyGuard {
     /// @notice Total LP tokens per pool: token => total LP supply
     mapping(address => uint256) public totalLiquidity;
 
+    /// @notice Total ETH held across all pool reserves (for accurate fee calculation)
+    uint256 public totalPooledEth;
+
     // ============ Modifiers ============
 
     modifier onlyFeeRecipient() {
@@ -103,12 +106,14 @@ contract SimplePool is ReentrancyGuard {
     // ============ Pool Creation ============
 
     /**
-     * @notice Create a new pool for a token
+     * @notice Create a new pool for a token (factory only)
      * @param token Token address
      * @param tokenAmount Initial token liquidity (must be approved)
      * @return lpTokens LP tokens minted to creator
+     * @dev Only callable by authorized factory to prevent front-running attacks
      */
     function createPool(address token, uint256 tokenAmount) external payable nonReentrant returns (uint256 lpTokens) {
+        if (msg.sender != authorizedFactory) revert NotAuthorizedFactory();
         if (pools[token].exists) revert PoolExists();
         if (msg.value == 0) revert ZeroAmount();
         if (tokenAmount == 0) revert ZeroAmount();
@@ -122,6 +127,9 @@ contract SimplePool is ReentrancyGuard {
             tokenReserve: tokenAmount,
             exists: true
         });
+
+        // Track total pooled ETH for accurate fee calculation
+        totalPooledEth += msg.value;
 
         // Store pool creator for emergency drain
         tokenCreators[token] = msg.sender;
@@ -162,6 +170,9 @@ contract SimplePool is ReentrancyGuard {
             tokenReserve: tokenAmount,
             exists: true
         });
+
+        // Track total pooled ETH for accurate fee calculation
+        totalPooledEth += msg.value;
 
         // Store the ORIGINAL creator for emergency drain rights
         tokenCreators[token] = creator;
@@ -206,9 +217,10 @@ contract SimplePool is ReentrancyGuard {
         if (tokensOut < minTokensOut) revert InsufficientOutput();
         if (tokensOut > pool.tokenReserve) revert InsufficientLiquidity();
 
-        // Update reserves
+        // Update reserves and track total pooled ETH
         pool.ethReserve += ethIn;
         pool.tokenReserve -= tokensOut;
+        totalPooledEth += ethIn;
         feesCollected[token] += fee;
 
         // Transfer tokens to buyer
@@ -243,9 +255,10 @@ contract SimplePool is ReentrancyGuard {
         if (ethOut < minEthOut) revert InsufficientOutput();
         if (grossEthOut > pool.ethReserve) revert InsufficientLiquidity();
 
-        // Update reserves
+        // Update reserves and track total pooled ETH
         pool.ethReserve -= grossEthOut;
         pool.tokenReserve += tokenAmount;
+        totalPooledEth -= grossEthOut;
         feesCollected[token] += fee;
 
         // Transfer ETH to seller
@@ -294,9 +307,10 @@ contract SimplePool is ReentrancyGuard {
 
         if (lpTokens < minLpTokens) revert InsufficientOutput();
 
-        // Update state
+        // Update state and track total pooled ETH
         pool.ethReserve += ethAmount;
         pool.tokenReserve += tokensRequired;
+        totalPooledEth += ethAmount;
         liquidity[token][msg.sender] += lpTokens;
         totalLiquidity[token] += lpTokens;
 
@@ -332,11 +346,12 @@ contract SimplePool is ReentrancyGuard {
         if (ethOut < minEthOut) revert InsufficientOutput();
         if (tokensOut < minTokensOut) revert InsufficientOutput();
 
-        // Update state
+        // Update state and track total pooled ETH
         liquidity[token][msg.sender] -= lpAmount;
         totalLiquidity[token] -= lpAmount;
         pool.ethReserve -= ethOut;
         pool.tokenReserve -= tokensOut;
+        totalPooledEth -= ethOut;
 
         // Transfer assets to provider
         IERC20(token).safeTransfer(msg.sender, tokensOut);
@@ -486,13 +501,13 @@ contract SimplePool is ReentrancyGuard {
      * @dev Calculates fees as contract balance minus all pool reserves
      */
     function withdrawFees() external onlyFeeRecipient {
-        uint256 totalPooledEth = _totalPooledEth();
+        uint256 pooledEth = _totalPooledEth();
         uint256 contractBalance = address(this).balance;
         
         // Fees = total balance - pooled ETH in reserves
-        if (contractBalance <= totalPooledEth) return;
+        if (contractBalance <= pooledEth) return;
         
-        uint256 feeBalance = contractBalance - totalPooledEth;
+        uint256 feeBalance = contractBalance - pooledEth;
         if (feeBalance > 0) {
             (bool success, ) = feeRecipient.call{value: feeBalance}("");
             if (!success) revert TransferFailed();
@@ -515,11 +530,8 @@ contract SimplePool is ReentrancyGuard {
      * @notice Calculate total ETH held in pool reserves
      * @dev This is used to calculate withdrawable fees
      */
-    function _totalPooledEth() internal pure returns (uint256) {
-        // Note: Fees are tracked via the feesCollected mapping per pool.
-        // The withdrawFees function withdraws the accumulated fee balance.
-        // For a more accurate implementation, track total pooled ETH as a state variable.
-        return 0;
+    function _totalPooledEth() internal view returns (uint256) {
+        return totalPooledEth;
     }
 
     /**
@@ -546,8 +558,10 @@ contract SimplePool is ReentrancyGuard {
         uint256 ethAmount = pool.ethReserve;
         uint256 tokenAmount = pool.tokenReserve;
 
+        // Update state and track total pooled ETH
         pool.ethReserve = 0;
         pool.tokenReserve = 0;
+        totalPooledEth -= ethAmount;
 
         if (tokenAmount > 0) {
             IERC20(token).safeTransfer(msg.sender, tokenAmount);

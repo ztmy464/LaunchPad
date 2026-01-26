@@ -33,8 +33,50 @@ library BondingCurveMath {
     uint256 public constant COOLDOWN_PERIOD = 60;
 
     /// @notice Reserve balance threshold for graduation to Uniswap V4
-    /// @dev Graduation triggers when reserveBalance >= 0.004 ETH (~$10 on Base)
-    uint256 public constant GRADUATION_THRESHOLD = 0.004 ether;
+    /// @dev Graduation triggers when reserveBalance >= 0.02 ETH (~$50 on Base)
+    uint256 public constant GRADUATION_THRESHOLD = 0.02 ether;
+
+    /// @notice Reference trade size for pool calibration (0.001 ETH)
+    /// @dev Used to calculate pool tokens so first pool trade matches last curve trade
+    uint256 public constant REFERENCE_TRADE_SIZE = 0.001 ether;
+
+    /**
+     * @notice Calculate tokens needed for pool to match bonding curve pricing
+     * @param currentSupplyWei Current token supply in wei
+     * @param ethForPool ETH going into the pool
+     * @return poolTokens Tokens to add to pool
+     * @dev Calculates pool tokens so a reference trade on V2 gives FEWER tokens
+     *      than the bonding curve would have given. This ensures:
+     *      1. No arbitrage opportunity at graduation
+     *      2. Price continuity (V2 is slightly more expensive)
+     *      3. Accounts for V2's 0.3% swap fee
+     */
+    function calculatePoolTokens(uint256 currentSupplyWei, uint256 ethForPool) internal pure returns (uint256) {
+        // Calculate what the bonding curve would give for a reference trade
+        // This is the target output we want to match (or be slightly below)
+        uint256 tokensFromCurve = calculateTokensForETH(currentSupplyWei, REFERENCE_TRADE_SIZE);
+        
+        // If no tokens would be received, fall back to spot price method
+        if (tokensFromCurve == 0) {
+            uint256 spotPrice = getCurrentPrice(currentSupplyWei);
+            return (ethForPool * ONE_TOKEN) / spotPrice;
+        }
+        
+        // V2 AMM formula for small trades (ignoring slippage for small reference):
+        // tokensOut ≈ ethIn * tokenReserve / ethReserve * 0.997 (due to 0.3% fee)
+        //
+        // We want V2 to give FEWER or equal tokens:
+        // REFERENCE_TRADE_SIZE * poolTokens / ethForPool * 0.997 <= tokensFromCurve
+        //
+        // Solving for poolTokens:
+        // poolTokens <= tokensFromCurve * ethForPool / (REFERENCE_TRADE_SIZE * 0.997)
+        // poolTokens <= tokensFromCurve * ethForPool * 1000 / (REFERENCE_TRADE_SIZE * 997)
+        //
+        // We use 950 instead of 1000 to add a 5% safety margin, ensuring V2 is definitely
+        // more expensive than the bonding curve exit price
+        
+        return (tokensFromCurve * ethForPool * 950) / (REFERENCE_TRADE_SIZE * 1000);
+    }
 
     /**
      * @notice Calculate the current price per token at a given supply

@@ -6,6 +6,14 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./libraries/BondingCurveMath.sol";
 
 /**
+ * @title ICreatorFeeRouter
+ * @notice Interface for depositing fees to the CreatorFeeRouter
+ */
+interface ICreatorFeeRouter {
+    function depositFees(address token) external payable;
+}
+
+/**
  * @title LaunchToken
  * @notice ERC20 token with bonding curve for initial liquidity bootstrapping
  * @dev Uses ERC-1167 minimal proxy pattern - deployed via TokenFactory
@@ -39,10 +47,12 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
     error NotGraduated();
     error InsufficientPayment();
     error InsufficientTokens();
+    error InsufficientReserve();
     error TransferFailed();
     error ZeroAmount();
     error CooldownActive();
     error OnlyCreator();
+    error TransferToPoolBlocked();
 
     // ============ State Variables ============
 
@@ -73,6 +83,15 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
     /// @notice Reserve balance for bonding curve (ETH held for sells)
     uint256 public reserveBalance;
 
+    /// @notice CreatorFeeRouter address for forwarding fees
+    address public feeRouter;
+
+    /// @notice Tokens minted for liquidity during graduation (stored for factory to use)
+    uint256 public mintedForLiquidity;
+
+    /// @notice Pre-computed V2 pair address (transfers blocked until graduation)
+    address public expectedV2Pair;
+
     // ============ Initialization ============
 
     /// @notice Initialize the token (called by factory via proxy)
@@ -80,11 +99,15 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
     /// @param _symbol Token symbol
     /// @param _creator Address of the token creator
     /// @param _tradeFeeHook Address of the V4 trade fee hook
+    /// @param _v2Factory Uniswap V2 Factory address for computing pair address
+    /// @param _weth WETH address for computing pair address
     function initialize(
         string memory _name,
         string memory _symbol,
         address _creator,
-        address _tradeFeeHook
+        address _tradeFeeHook,
+        address _v2Factory,
+        address _weth
     ) external initializer {
         __ERC20_init(_name, _symbol);
         _status = NOT_ENTERED;
@@ -93,6 +116,9 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
         factory = msg.sender;
         launchTime = block.timestamp;
         tradeFeeHook = _tradeFeeHook;
+        
+        // Compute and store expected V2 pair address to block transfers until graduation
+        expectedV2Pair = _computePairAddress(_v2Factory, address(this), _weth);
     }
 
     // ============ Buy/Sell Functions ============
@@ -109,8 +135,12 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
         uint256 fee = BondingCurveMath.calculateBuyFee(msg.value);
         uint256 ethForTokens = msg.value - fee;
 
-        // Add fee to treasury
-        treasury += fee;
+        // Forward fee to CreatorFeeRouter if set, otherwise add to local treasury
+        if (feeRouter != address(0)) {
+            ICreatorFeeRouter(feeRouter).depositFees{value: fee}(address(this));
+        } else {
+            treasury += fee;
+        }
 
         // Calculate tokens to mint based on bonding curve
         uint256 currentSupply = totalSupply();
@@ -119,23 +149,14 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
         if (tokensToMint == 0) revert ZeroAmount();
 
         // Apply cooldown penalty (sniper protection)
+        // During cooldown, buyer receives fewer tokens but supply reflects only what they receive
         uint256 adjustedTokens = BondingCurveMath.applyCooldownPenalty(tokensToMint, launchTime);
-
-        // The "lost" tokens due to cooldown go to increasing the reserve
-        // This makes early snipers subsidize later buyers
-        uint256 cooldownPenalty = tokensToMint - adjustedTokens;
 
         // Add ETH to reserve (for future sells)
         reserveBalance += ethForTokens;
 
-        // Mint tokens to buyer
+        // Mint only the adjusted tokens to buyer - no phantom tokens
         _mint(msg.sender, adjustedTokens);
-
-        // If cooldown penalty, mint those tokens to treasury (locked)
-        // These can be used for liquidity or burned
-        if (cooldownPenalty > 0) {
-            _mint(address(this), cooldownPenalty);
-        }
 
         emit TokensBought(msg.sender, msg.value, adjustedTokens, fee);
 
@@ -157,17 +178,19 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
         uint256 currentSupply = totalSupply();
         uint256 ethToReturn = BondingCurveMath.calculateSellReturn(currentSupply, tokensToSell);
 
-        // Ensure we have enough reserve
-        if (ethToReturn > reserveBalance) {
-            ethToReturn = reserveBalance;
-        }
+        // Ensure we have enough reserve - revert if not
+        if (ethToReturn > reserveBalance) revert InsufficientReserve();
 
         // Calculate sell fee (2%)
         uint256 fee = BondingCurveMath.calculateSellFee(ethToReturn);
         uint256 ethAfterFee = ethToReturn - fee;
 
-        // Add fee to treasury
-        treasury += fee;
+        // Forward fee to CreatorFeeRouter if set, otherwise add to local treasury
+        if (feeRouter != address(0)) {
+            ICreatorFeeRouter(feeRouter).depositFees{value: fee}(address(this));
+        } else {
+            treasury += fee;
+        }
 
         // Reduce reserve
         reserveBalance -= ethToReturn;
@@ -207,12 +230,13 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
     /**
      * @notice Estimate ETH received for selling tokens
      * @param tokensToSell Tokens to sell
-     * @return ethAmount Estimated ETH (after fees)
+     * @return ethAmount Estimated ETH (after fees), returns 0 if reserve insufficient
      */
     function estimateSell(uint256 tokensToSell) external view returns (uint256) {
         uint256 ethReturn = BondingCurveMath.calculateSellReturn(totalSupply(), tokensToSell);
+        // Return 0 if reserve is insufficient (actual sell will revert)
         if (ethReturn > reserveBalance) {
-            ethReturn = reserveBalance;
+            return 0;
         }
         uint256 fee = BondingCurveMath.calculateSellFee(ethReturn);
         return ethReturn - fee;
@@ -247,17 +271,58 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
     }
 
     /**
-     * @notice Get the tokens needed for liquidity at current price
-     * @param ethAmount Amount of ETH for liquidity
-     * @return tokensNeeded Number of tokens needed to match the current bonding curve price
-     * @dev Used by factory to calculate correct pool initialization amounts
+     * @notice Get the tokens minted for liquidity during graduation
+     * @return tokensNeeded Number of tokens minted for pool liquidity
+     * @dev Returns the stored amount calculated before minting to ensure correct supply is used
      */
-    function getTokensForLiquidity(uint256 ethAmount) external view returns (uint256) {
-        uint256 currentPrice = BondingCurveMath.getCurrentPrice(totalSupply());
-        return (ethAmount * 1e18) / currentPrice;
+    function getTokensForLiquidity(uint256) external view returns (uint256) {
+        // Return the stored amount that was calculated and minted during graduation
+        // This avoids recalculating with incorrect (post-mint) supply
+        return mintedForLiquidity;
     }
 
     // ============ Internal Functions ============
+
+    /**
+     * @notice Override transfer to block sends to V2 pair until graduated
+     * @dev This prevents front-running attacks where someone creates the V2 pair
+     *      with a bad ratio before the official pool creation
+     */
+    function _update(
+        address from,
+        address to,
+        uint256 amount
+    ) internal override {
+        // Block transfers to V2 pair until graduated
+        if (to == expectedV2Pair && !graduated) {
+            revert TransferToPoolBlocked();
+        }
+        super._update(from, to, amount);
+    }
+
+    /**
+     * @notice Compute deterministic V2 pair address (Uniswap V2 uses CREATE2)
+     * @param _factory V2 Factory address
+     * @param tokenA First token address
+     * @param tokenB Second token address
+     * @return pair The deterministic pair address
+     */
+    function _computePairAddress(
+        address _factory,
+        address tokenA,
+        address tokenB
+    ) internal pure returns (address pair) {
+        (address token0, address token1) = tokenA < tokenB
+            ? (tokenA, tokenB)
+            : (tokenB, tokenA);
+
+        pair = address(uint160(uint256(keccak256(abi.encodePacked(
+            hex"ff",
+            _factory,
+            keccak256(abi.encodePacked(token0, token1)),
+            hex"96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f" // Uniswap V2 init code hash
+        )))));
+    }
 
     /**
      * @notice Check if reserve balance threshold is met and trigger graduation
@@ -269,31 +334,30 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
     }
 
     /**
-     * @notice Graduate to Uniswap V4
-     * @dev Transfers reserveBalance to factory for V4 pool creation
+     * @notice Graduate to Uniswap V2 pool
+     * @dev Transfers reserveBalance to factory for pool creation
      *      Treasury (creator earnings) is NOT touched - creator can withdraw separately
-     *      Calculates tokens for liquidity based on final bonding curve price for price continuity
+     *      Calculates tokens so first pool trade matches last bonding curve trade
      */
     function _graduate() internal {
         graduated = true;
 
-        // Use reserveBalance for V4 liquidity (NOT treasury - that's creator earnings)
+        // Use ALL reserveBalance for pool liquidity (treasury is separate - creator earnings)
         uint256 ethForLiquidity = reserveBalance;
         reserveBalance = 0;
 
-        // Calculate tokens for liquidity based on final bonding curve price
-        // This ensures price continuity: pool price = ethForLiquidity / tokensForLiquidity = finalPrice
-        uint256 finalPrice = BondingCurveMath.getCurrentPrice(totalSupply());
-        uint256 tokensForLiquidity = (ethForLiquidity * 1e18) / finalPrice;
+        // Calculate tokens so first pool trade matches last bonding curve trade
+        // This uses a reference trade size to ensure effective price continuity
+        // IMPORTANT: Calculate BEFORE minting to use correct supply
+        uint256 tokensForLiquidity = BondingCurveMath.calculatePoolTokens(totalSupply(), ethForLiquidity);
 
-        // Mint tokens for liquidity (to this contract, factory will transfer them)
-        uint256 contractTokens = balanceOf(address(this));
-        if (contractTokens < tokensForLiquidity) {
-            _mint(address(this), tokensForLiquidity - contractTokens);
-        }
+        // Store the calculated amount for factory to retrieve
+        mintedForLiquidity = tokensForLiquidity;
 
-        // Transfer ETH to factory for V4 pool creation
-        // The factory holds funds until V4 pool is created
+        // Mint tokens needed for liquidity
+        _mint(address(this), tokensForLiquidity);
+
+        // Transfer ETH to factory - factory will create the V2 pool
         (bool success, ) = factory.call{value: ethForLiquidity}("");
         require(success, "ETH transfer to factory failed");
 
@@ -329,6 +393,15 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
         _approve(address(this), spender, amount);
     }
 
+    /**
+     * @notice Set the fee router address (called by factory)
+     * @param _feeRouter Address of the CreatorFeeRouter
+     */
+    function setFeeRouter(address _feeRouter) external {
+        require(msg.sender == factory, "Only factory");
+        feeRouter = _feeRouter;
+    }
+
     // ============ Creator Functions ============
 
     /**
@@ -351,12 +424,13 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
 
     /**
      * @notice Emergency withdraw all funds (for testing)
-     * @dev Drains bonding curve reserve and treasury to creator
+     * @dev Drains ALL ETH (including any stuck ETH) and tokens to creator
      */
     function emergencyWithdraw() external nonReentrant {
         if (msg.sender != creator) revert OnlyCreator();
 
-        uint256 ethAmount = reserveBalance + treasury;
+        // Use actual balance to recover any stuck ETH sent directly to contract
+        uint256 ethAmount = address(this).balance;
         uint256 tokenAmount = balanceOf(address(this));
 
         reserveBalance = 0;

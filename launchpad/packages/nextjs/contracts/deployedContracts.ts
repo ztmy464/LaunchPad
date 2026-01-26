@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   8453: {
     TokenFactory: {
-      address: "0xec811d59d19c1c20d785a1a3b55efbd326c2e688",
+      address: "0xa3a4afa09de1d47174b5162e0c5808b410b79413",
       abi: [
         {
           type: "constructor",
@@ -105,6 +105,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "feeRouter",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "getBasePrice",
           inputs: [],
           outputs: [
@@ -154,6 +167,25 @@ const deployedContracts = {
             },
           ],
           stateMutability: "pure",
+        },
+        {
+          type: "function",
+          name: "getPair",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -271,6 +303,25 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "hasPair",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "isLaunchedToken",
           inputs: [
             {
@@ -348,10 +399,23 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "setSimplePool",
+          name: "rugPool",
           inputs: [
             {
-              name: "_simplePool",
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setFeeRouter",
+          inputs: [
+            {
+              name: "_feeRouter",
               type: "address",
               internalType: "address",
             },
@@ -374,7 +438,20 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "simplePool",
+          name: "setV2Router",
+          inputs: [
+            {
+              name: "_v2Router",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "tokenImplementation",
           inputs: [],
           outputs: [
             {
@@ -387,8 +464,14 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "tokenImplementation",
-          inputs: [],
+          name: "tokenPairs",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [
             {
               name: "",
@@ -476,6 +559,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "v2Router",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "withdrawGraduationFunds",
           inputs: [
             {
@@ -519,6 +615,25 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "FeeRouterUpdated",
+          inputs: [
+            {
+              name: "oldRouter",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "newRouter",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "GraduatedPoolCreated",
           inputs: [
             {
@@ -528,7 +643,7 @@ const deployedContracts = {
               internalType: "address",
             },
             {
-              name: "pool",
+              name: "pair",
               type: "address",
               indexed: true,
               internalType: "address",
@@ -541,6 +656,12 @@ const deployedContracts = {
             },
             {
               name: "tokenAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "liquidity",
               type: "uint256",
               indexed: false,
               internalType: "uint256",
@@ -613,19 +734,31 @@ const deployedContracts = {
         },
         {
           type: "event",
-          name: "SimplePoolUpdated",
+          name: "PoolDrained",
           inputs: [
             {
-              name: "oldPool",
+              name: "token",
               type: "address",
               indexed: true,
               internalType: "address",
             },
             {
-              name: "newPool",
+              name: "creator",
               type: "address",
               indexed: true,
               internalType: "address",
+            },
+            {
+              name: "ethAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
             },
           ],
           anonymous: false,
@@ -687,6 +820,25 @@ const deployedContracts = {
           anonymous: false,
         },
         {
+          type: "event",
+          name: "V2RouterUpdated",
+          inputs: [
+            {
+              name: "oldRouter",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "newRouter",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
           type: "error",
           name: "EmptyName",
           inputs: [],
@@ -699,6 +851,11 @@ const deployedContracts = {
         {
           type: "error",
           name: "FailedDeployment",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "FeeRouterNotSet",
           inputs: [],
         },
         {
@@ -725,6 +882,11 @@ const deployedContracts = {
         {
           type: "error",
           name: "InvalidHook",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NoPoolExists",
           inputs: [],
         },
         {
@@ -782,17 +944,17 @@ const deployedContracts = {
         },
         {
           type: "error",
-          name: "SimplePoolNotSet",
+          name: "TransferFailed",
           inputs: [],
         },
         {
           type: "error",
-          name: "TransferFailed",
+          name: "V2RouterNotSet",
           inputs: [],
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 41253785,
+      deployedOnBlock: 41304510,
     },
     SimplePool: {
       address: "0xa6b2d1751ab31000ccffdda05552e92c0d6580f2",
@@ -1434,6 +1596,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "totalPooledEth",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "withdrawFees",
           inputs: [],
           outputs: [],
@@ -1720,10 +1895,601 @@ const deployedContracts = {
       inheritedFunctions: {},
       deployedOnBlock: 41253785,
     },
+    CreatorFeeRouter: {
+      address: "0xf9dbc0763133f8b0304697e2a7daf0079b1bf065",
+      abi: [
+        {
+          type: "constructor",
+          inputs: [
+            {
+              name: "_v2Router",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_v2Factory",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "receive",
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "BPS_DENOMINATOR",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "FEE_BPS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "WETH",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "accumulatedFees",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "authorizedFactory",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "buyTokensWithFee",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "minTokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "deadline",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "tokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "deployer",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "depositFees",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "estimateBuyOutput",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "ethIn",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "tokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "estimateSellOutput",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "tokensIn",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "ethOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getCreator",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getPair",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getReserves",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "ethReserve",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "tokenReserve",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "hasPair",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "isRegistered",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "registerToken",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "creator",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "sellTokensWithFee",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "minEthOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "deadline",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "ethOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setAuthorizedFactory",
+          inputs: [
+            {
+              name: "_factory",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "tokenCreators",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "v2Factory",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract IUniswapV2Factory",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "v2Router",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract IUniswapV2Router02",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "withdrawFees",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "event",
+          name: "FeesDeposited",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "FeesWithdrawn",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "creator",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "SwapWithFee",
+          inputs: [
+            {
+              name: "user",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "isBuy",
+              type: "bool",
+              indexed: false,
+              internalType: "bool",
+            },
+            {
+              name: "amountIn",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "amountOut",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "fee",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "TokenRegistered",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "creator",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "error",
+          name: "AlreadyRegistered",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InsufficientOutput",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InvalidAddress",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NoFeesToWithdraw",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NotAuthorizedFactory",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NotCreator",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NotDeployer",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ReentrancyGuardReentrantCall",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SafeERC20FailedOperation",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "TokenNotRegistered",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "TransferFailed",
+          inputs: [],
+        },
+      ],
+      inheritedFunctions: {},
+      deployedOnBlock: 41304510,
+    },
   },
   31337: {
     TokenFactory: {
-      address: "0x55aa8644195486f5fc65884c7d847d4e79caa9bc",
+      address: "0x25d23b63f166ec74b87b40cbcc5548d29576c56c",
       abi: [
         {
           type: "constructor",
@@ -1821,6 +2587,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "feeRouter",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "getBasePrice",
           inputs: [],
           outputs: [
@@ -1870,6 +2649,25 @@ const deployedContracts = {
             },
           ],
           stateMutability: "pure",
+        },
+        {
+          type: "function",
+          name: "getPair",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -1987,6 +2785,25 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "hasPair",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "isLaunchedToken",
           inputs: [
             {
@@ -2064,10 +2881,23 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "setSimplePool",
+          name: "rugPool",
           inputs: [
             {
-              name: "_simplePool",
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setFeeRouter",
+          inputs: [
+            {
+              name: "_feeRouter",
               type: "address",
               internalType: "address",
             },
@@ -2090,7 +2920,20 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "simplePool",
+          name: "setV2Router",
+          inputs: [
+            {
+              name: "_v2Router",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "tokenImplementation",
           inputs: [],
           outputs: [
             {
@@ -2103,8 +2946,14 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "tokenImplementation",
-          inputs: [],
+          name: "tokenPairs",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [
             {
               name: "",
@@ -2192,6 +3041,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "v2Router",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "withdrawGraduationFunds",
           inputs: [
             {
@@ -2235,6 +3097,25 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "FeeRouterUpdated",
+          inputs: [
+            {
+              name: "oldRouter",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "newRouter",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "GraduatedPoolCreated",
           inputs: [
             {
@@ -2244,7 +3125,7 @@ const deployedContracts = {
               internalType: "address",
             },
             {
-              name: "pool",
+              name: "pair",
               type: "address",
               indexed: true,
               internalType: "address",
@@ -2257,6 +3138,12 @@ const deployedContracts = {
             },
             {
               name: "tokenAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "liquidity",
               type: "uint256",
               indexed: false,
               internalType: "uint256",
@@ -2329,19 +3216,31 @@ const deployedContracts = {
         },
         {
           type: "event",
-          name: "SimplePoolUpdated",
+          name: "PoolDrained",
           inputs: [
             {
-              name: "oldPool",
+              name: "token",
               type: "address",
               indexed: true,
               internalType: "address",
             },
             {
-              name: "newPool",
+              name: "creator",
               type: "address",
               indexed: true,
               internalType: "address",
+            },
+            {
+              name: "ethAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
             },
           ],
           anonymous: false,
@@ -2403,6 +3302,25 @@ const deployedContracts = {
           anonymous: false,
         },
         {
+          type: "event",
+          name: "V2RouterUpdated",
+          inputs: [
+            {
+              name: "oldRouter",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "newRouter",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
           type: "error",
           name: "EmptyName",
           inputs: [],
@@ -2415,6 +3333,11 @@ const deployedContracts = {
         {
           type: "error",
           name: "FailedDeployment",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "FeeRouterNotSet",
           inputs: [],
         },
         {
@@ -2441,6 +3364,11 @@ const deployedContracts = {
         {
           type: "error",
           name: "InvalidHook",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NoPoolExists",
           inputs: [],
         },
         {
@@ -2498,24 +3426,35 @@ const deployedContracts = {
         },
         {
           type: "error",
-          name: "SimplePoolNotSet",
+          name: "TransferFailed",
           inputs: [],
         },
         {
           type: "error",
-          name: "TransferFailed",
+          name: "V2RouterNotSet",
           inputs: [],
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 41256643,
+      deployedOnBlock: 41304327,
     },
-    SimplePool: {
-      address: "0x6c7a2c02f2b9a7b9ac30df8334a56daae5a84531",
+    CreatorFeeRouter: {
+      address: "0x2f8a34bb1721684658827b3aa72ef8260d5bbbbb",
       abi: [
         {
           type: "constructor",
-          inputs: [],
+          inputs: [
+            {
+              name: "_v2Router",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_v2Factory",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "nonpayable",
         },
         {
@@ -2524,7 +3463,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "BPS",
+          name: "BPS_DENOMINATOR",
           inputs: [],
           outputs: [
             {
@@ -2537,7 +3476,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "BUY_FEE_BPS",
+          name: "FEE_BPS",
           inputs: [],
           outputs: [
             {
@@ -2550,53 +3489,35 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "MINIMUM_LIQUIDITY",
+          name: "WETH",
           inputs: [],
           outputs: [
             {
               name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "SELL_FEE_BPS",
-          inputs: [],
-          outputs: [
-            {
-              name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "addLiquidity",
-          inputs: [
-            {
-              name: "token",
               type: "address",
               internalType: "address",
             },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "accumulatedFees",
+          inputs: [
             {
-              name: "minLpTokens",
-              type: "uint256",
-              internalType: "uint256",
+              name: "",
+              type: "address",
+              internalType: "address",
             },
           ],
           outputs: [
             {
-              name: "lpTokens",
+              name: "",
               type: "uint256",
               internalType: "uint256",
             },
           ],
-          stateMutability: "payable",
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -2613,7 +3534,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "buyTokens",
+          name: "buyTokensWithFee",
           inputs: [
             {
               name: "token",
@@ -2622,6 +3543,11 @@ const deployedContracts = {
             },
             {
               name: "minTokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "deadline",
               type: "uint256",
               internalType: "uint256",
             },
@@ -2637,60 +3563,20 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "createPool",
-          inputs: [
+          name: "deployer",
+          inputs: [],
+          outputs: [
             {
-              name: "token",
+              name: "",
               type: "address",
               internalType: "address",
             },
-            {
-              name: "tokenAmount",
-              type: "uint256",
-              internalType: "uint256",
-            },
           ],
-          outputs: [
-            {
-              name: "lpTokens",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "payable",
+          stateMutability: "view",
         },
         {
           type: "function",
-          name: "createPoolWithCreator",
-          inputs: [
-            {
-              name: "token",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "tokenAmount",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "creator",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [
-            {
-              name: "lpTokens",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "payable",
-        },
-        {
-          type: "function",
-          name: "emergencyDrainPool",
+          name: "depositFees",
           inputs: [
             {
               name: "token",
@@ -2699,36 +3585,7 @@ const deployedContracts = {
             },
           ],
           outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "estimateAddLiquidity",
-          inputs: [
-            {
-              name: "token",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "ethAmount",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          outputs: [
-            {
-              name: "tokensRequired",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "lpTokensOut",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
+          stateMutability: "payable",
         },
         {
           type: "function",
@@ -2746,35 +3603,6 @@ const deployedContracts = {
             },
           ],
           outputs: [
-            {
-              name: "tokensOut",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "estimateRemoveLiquidity",
-          inputs: [
-            {
-              name: "token",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "lpAmount",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          outputs: [
-            {
-              name: "ethOut",
-              type: "uint256",
-              internalType: "uint256",
-            },
             {
               name: "tokensOut",
               type: "uint256",
@@ -2809,39 +3637,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "feeRecipient",
-          inputs: [],
-          outputs: [
-            {
-              name: "",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "feesCollected",
-          inputs: [
-            {
-              name: "",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "getFeesCollected",
+          name: "getCreator",
           inputs: [
             {
               name: "token",
@@ -2852,39 +3648,15 @@ const deployedContracts = {
           outputs: [
             {
               name: "",
-              type: "uint256",
-              internalType: "uint256",
+              type: "address",
+              internalType: "address",
             },
           ],
           stateMutability: "view",
         },
         {
           type: "function",
-          name: "getLiquidity",
-          inputs: [
-            {
-              name: "token",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "provider",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "getPrice",
+          name: "getPair",
           inputs: [
             {
               name: "token",
@@ -2895,8 +3667,8 @@ const deployedContracts = {
           outputs: [
             {
               name: "",
-              type: "uint256",
-              internalType: "uint256",
+              type: "address",
+              internalType: "address",
             },
           ],
           stateMutability: "view",
@@ -2927,26 +3699,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "getTotalLiquidity",
-          inputs: [
-            {
-              name: "token",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [
-            {
-              name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "hasPool",
+          name: "hasPair",
           inputs: [
             {
               name: "token",
@@ -2965,15 +3718,10 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "liquidity",
+          name: "isRegistered",
           inputs: [
             {
-              name: "",
-              type: "address",
-              internalType: "address",
-            },
-            {
-              name: "",
+              name: "token",
               type: "address",
               internalType: "address",
             },
@@ -2981,35 +3729,6 @@ const deployedContracts = {
           outputs: [
             {
               name: "",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
-          stateMutability: "view",
-        },
-        {
-          type: "function",
-          name: "pools",
-          inputs: [
-            {
-              name: "",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [
-            {
-              name: "ethReserve",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "tokenReserve",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "exists",
               type: "bool",
               internalType: "bool",
             },
@@ -3018,7 +3737,7 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "removeLiquidity",
+          name: "registerToken",
           inputs: [
             {
               name: "token",
@@ -3026,38 +3745,17 @@ const deployedContracts = {
               internalType: "address",
             },
             {
-              name: "lpAmount",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "minEthOut",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "minTokensOut",
-              type: "uint256",
-              internalType: "uint256",
+              name: "creator",
+              type: "address",
+              internalType: "address",
             },
           ],
-          outputs: [
-            {
-              name: "ethOut",
-              type: "uint256",
-              internalType: "uint256",
-            },
-            {
-              name: "tokensOut",
-              type: "uint256",
-              internalType: "uint256",
-            },
-          ],
+          outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
-          name: "sellTokens",
+          name: "sellTokensWithFee",
           inputs: [
             {
               name: "token",
@@ -3071,6 +3769,11 @@ const deployedContracts = {
             },
             {
               name: "minEthOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "deadline",
               type: "uint256",
               internalType: "uint256",
             },
@@ -3099,19 +3802,6 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "setFeeRecipient",
-          inputs: [
-            {
-              name: "newRecipient",
-              type: "address",
-              internalType: "address",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
           name: "tokenCreators",
           inputs: [
             {
@@ -3131,19 +3821,26 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "totalLiquidity",
-          inputs: [
-            {
-              name: "",
-              type: "address",
-              internalType: "address",
-            },
-          ],
+          name: "v2Factory",
+          inputs: [],
           outputs: [
             {
               name: "",
-              type: "uint256",
-              internalType: "uint256",
+              type: "address",
+              internalType: "contract IUniswapV2Factory",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "v2Router",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract IUniswapV2Router02",
             },
           ],
           stateMutability: "view",
@@ -3151,66 +3848,22 @@ const deployedContracts = {
         {
           type: "function",
           name: "withdrawFees",
-          inputs: [],
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "event",
-          name: "EmergencyPoolDrain",
+          name: "FeesDeposited",
           inputs: [
             {
               name: "token",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "creator",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "ethAmount",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-            {
-              name: "tokenAmount",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-          ],
-          anonymous: false,
-        },
-        {
-          type: "event",
-          name: "FeeRecipientUpdated",
-          inputs: [
-            {
-              name: "oldRecipient",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "newRecipient",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-          ],
-          anonymous: false,
-        },
-        {
-          type: "event",
-          name: "FeesWithdrawn",
-          inputs: [
-            {
-              name: "recipient",
               type: "address",
               indexed: true,
               internalType: "address",
@@ -3226,7 +3879,7 @@ const deployedContracts = {
         },
         {
           type: "event",
-          name: "LiquidityAdded",
+          name: "FeesWithdrawn",
           inputs: [
             {
               name: "token",
@@ -3235,25 +3888,13 @@ const deployedContracts = {
               internalType: "address",
             },
             {
-              name: "provider",
+              name: "creator",
               type: "address",
               indexed: true,
               internalType: "address",
             },
             {
-              name: "ethAmount",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-            {
-              name: "tokenAmount",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-            {
-              name: "lpTokens",
+              name: "amount",
               type: "uint256",
               indexed: false,
               internalType: "uint256",
@@ -3263,78 +3904,16 @@ const deployedContracts = {
         },
         {
           type: "event",
-          name: "LiquidityRemoved",
-          inputs: [
-            {
-              name: "token",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "provider",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "ethAmount",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-            {
-              name: "tokenAmount",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-            {
-              name: "lpBurned",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-          ],
-          anonymous: false,
-        },
-        {
-          type: "event",
-          name: "PoolCreated",
-          inputs: [
-            {
-              name: "token",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "ethAmount",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-            {
-              name: "tokenAmount",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-            {
-              name: "lpTokens",
-              type: "uint256",
-              indexed: false,
-              internalType: "uint256",
-            },
-          ],
-          anonymous: false,
-        },
-        {
-          type: "event",
-          name: "Swap",
+          name: "SwapWithFee",
           inputs: [
             {
               name: "user",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "token",
               type: "address",
               indexed: true,
               internalType: "address",
@@ -3367,13 +3946,27 @@ const deployedContracts = {
           anonymous: false,
         },
         {
-          type: "error",
-          name: "InsufficientLPBalance",
-          inputs: [],
+          type: "event",
+          name: "TokenRegistered",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "creator",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
         },
         {
           type: "error",
-          name: "InsufficientLiquidity",
+          name: "AlreadyRegistered",
           inputs: [],
         },
         {
@@ -3383,22 +3976,27 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "InvalidAddress",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NoFeesToWithdraw",
+          inputs: [],
+        },
+        {
+          type: "error",
           name: "NotAuthorizedFactory",
           inputs: [],
         },
         {
           type: "error",
-          name: "NotTokenCreator",
+          name: "NotCreator",
           inputs: [],
         },
         {
           type: "error",
-          name: "PoolExists",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "PoolNotExists",
+          name: "NotDeployer",
           inputs: [],
         },
         {
@@ -3419,22 +4017,17 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "TokenNotRegistered",
+          inputs: [],
+        },
+        {
+          type: "error",
           name: "TransferFailed",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "Unauthorized",
-          inputs: [],
-        },
-        {
-          type: "error",
-          name: "ZeroAmount",
           inputs: [],
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 41256643,
+      deployedOnBlock: 41304327,
     },
     V4SwapHelper: {
       address: "0xb944cfce442f60cfaca5c57ee933a729e133575d",
@@ -4198,6 +4791,945 @@ const deployedContracts = {
       ],
       inheritedFunctions: {},
       deployedOnBlock: 41238171,
+    },
+    SimplePool: {
+      address: "0xa0e5fa0d4a58b3da57ccc734a591a6b8ba6b7fd1",
+      abi: [
+        {
+          type: "constructor",
+          inputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "receive",
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "BPS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "BUY_FEE_BPS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "MINIMUM_LIQUIDITY",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "SELL_FEE_BPS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "addLiquidity",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "minLpTokens",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "lpTokens",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "authorizedFactory",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "buyTokens",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "minTokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "tokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "createPool",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "lpTokens",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "createPoolWithCreator",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "creator",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "lpTokens",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "emergencyDrainPool",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "estimateAddLiquidity",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "ethAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "tokensRequired",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "lpTokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "estimateBuyOutput",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "ethIn",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "tokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "estimateRemoveLiquidity",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "lpAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "ethOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "tokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "estimateSellOutput",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "tokensIn",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "ethOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "feeRecipient",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "feesCollected",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getFeesCollected",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getLiquidity",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "provider",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getPrice",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getReserves",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "ethReserve",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "tokenReserve",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getTotalLiquidity",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "hasPool",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "liquidity",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "pools",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "ethReserve",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "tokenReserve",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "exists",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "removeLiquidity",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "lpAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "minEthOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "minTokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "ethOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "tokensOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "sellTokens",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "minEthOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "ethOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setAuthorizedFactory",
+          inputs: [
+            {
+              name: "_factory",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setFeeRecipient",
+          inputs: [
+            {
+              name: "newRecipient",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "tokenCreators",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "totalLiquidity",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "totalPooledEth",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "withdrawFees",
+          inputs: [],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "event",
+          name: "EmergencyPoolDrain",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "creator",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "ethAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "FeeRecipientUpdated",
+          inputs: [
+            {
+              name: "oldRecipient",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "newRecipient",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "FeesWithdrawn",
+          inputs: [
+            {
+              name: "recipient",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "LiquidityAdded",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "provider",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "ethAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "lpTokens",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "LiquidityRemoved",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "provider",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "ethAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "lpBurned",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "PoolCreated",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "ethAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "tokenAmount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "lpTokens",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "Swap",
+          inputs: [
+            {
+              name: "user",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "isBuy",
+              type: "bool",
+              indexed: false,
+              internalType: "bool",
+            },
+            {
+              name: "amountIn",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "amountOut",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "fee",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "error",
+          name: "InsufficientLPBalance",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InsufficientLiquidity",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InsufficientOutput",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NotAuthorizedFactory",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NotTokenCreator",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "PoolExists",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "PoolNotExists",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ReentrancyGuardReentrantCall",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SafeERC20FailedOperation",
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "TransferFailed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "Unauthorized",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ZeroAmount",
+          inputs: [],
+        },
+      ],
+      inheritedFunctions: {},
+      deployedOnBlock: 41241466,
     },
   },
 } as const;

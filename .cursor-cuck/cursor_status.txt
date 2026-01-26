@@ -1,2 +1,0 @@
-done
-Committed and pushed: Move Token Launchpad branding to header (57803dd)

@@ -194,9 +194,6 @@ const Home: NextPage = () => {
         <div className="container mx-auto px-6">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
             <div className="max-w-xl">
-              <h1 className="text-5xl font-bold mb-4">
-                Token <span className="text-primary">Launchpad</span>
-              </h1>
               <p className="text-lg text-base-content/70 mb-6">
                 Launch your token with a bonding curve. No initial liquidity needed. As people buy, the reserve fills
                 up. At {graduationDisplay} ETH, your token graduates to Uniswap V4.
@@ -207,62 +204,6 @@ const Home: NextPage = () => {
                   Launch Token
                 </Link>
               </div>
-            </div>
-            <div className="stats shadow bg-base-100">
-              <div className="stat">
-                <div className="stat-title">Total Tokens</div>
-                <div className="stat-value text-primary">{totalTokens?.toString() || "0"}</div>
-                <div className="stat-desc">Launched on platform</div>
-              </div>
-              <div className="stat">
-                <div className="stat-title">Buy Fee</div>
-                <div className="stat-value text-secondary">{buyFeePercent}%</div>
-                <div className="stat-desc">Goes to treasury</div>
-              </div>
-              <div className="stat">
-                <div className="stat-title">Sell Fee</div>
-                <div className="stat-value text-accent">{sellFeePercent}%</div>
-                <div className="stat-desc">Goes to treasury</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* How It Works */}
-      <div className="bg-base-200 py-12">
-        <div className="container mx-auto px-6">
-          <h2 className="text-2xl font-bold mb-8 text-center">How It Works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-3 text-primary-content font-bold">
-                1
-              </div>
-              <h3 className="font-semibold mb-2">Create Token</h3>
-              <p className="text-sm text-base-content/60">Enter name & symbol. Your token launches instantly.</p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-3 text-primary-content font-bold">
-                2
-              </div>
-              <h3 className="font-semibold mb-2">Bonding Curve</h3>
-              <p className="text-sm text-base-content/60">Buy & sell against the curve. Price rises with demand.</p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-3 text-primary-content font-bold">
-                3
-              </div>
-              <h3 className="font-semibold mb-2">Build Reserve</h3>
-              <p className="text-sm text-base-content/60">
-                Reserve grows. At {graduationDisplay} ETH, graduation begins.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-3 text-primary-content font-bold">
-                4
-              </div>
-              <h3 className="font-semibold mb-2">Graduate to Uniswap</h3>
-              <p className="text-sm text-base-content/60">Reserve seeds V4 pool. Real liquidity, real trading.</p>
             </div>
           </div>
         </div>
@@ -294,11 +235,7 @@ const Home: NextPage = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tokens.map(token => (
-              <TokenCard
-                key={token.address}
-                token={token}
-                graduationThreshold={graduationThreshold || 0n}
-              />
+              <TokenCard key={token.address} token={token} graduationThreshold={graduationThreshold || 0n} />
             ))}
           </div>
         )}

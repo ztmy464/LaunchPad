@@ -1,65 +1,79 @@
 # Example Token Launcher
 
-> **Note:** This is a test application built to demonstrate and test **"Ethereum Wingman"** - an AI skill I'm developing for Cursor/Claude that helps developers build Ethereum dApps.
+`example-token-launcher` is a token launchpad demo built on Scaffold-ETH 2. It is the frontend base I am using to prototype a Pump.fun-style launchpad on EVM chains.
 
-## What is Ethereum Wingman?
+The project now includes:
 
-Ethereum Wingman is an AI coding assistant skill that guides developers through building Scaffold-ETH 2 projects. It provides:
+- Token list homepage with graduation progress
+- Token detail page with trade panel
+- Real-time market data service for candles and recent trades
+- Candlestick chart rendering with `lightweight-charts`
+- Recent trades panel inspired by `Pump-UI-bondle`
+- Local anvil workflow for development and testing
 
-- Smart contract development guidance (Solidity best practices, security patterns)
-- Frontend integration with wagmi/viem hooks
-- Testing workflows using Foundry fork mode against real protocol state
-- Knowledge of common pitfalls and historical DeFi exploits
+## What This Demo Covers
 
-The skill files are located in `.agents/skills/ethereum-wingman/`.
-
-## The Test App: Token Launchpad
-
-This repository contains a token launchpad dApp built with Scaffold-ETH 2, featuring:
-
-- **Bonding Curve** - Automated price discovery where token price increases with supply
-- **Sniper Protection** - 60-second cooldown giving early buyers proportionally fewer tokens
-- **Creator Fees** - 1% buy fee / 2% sell fee going to the token creator
-- **Graduation to Uniswap V4** - When reserve reaches 0.1 ETH, tokens graduate to a real DEX pool
+- Bonding curve token launches
+- Sniper protection / cooldown display
+- Buy and sell actions from the frontend
+- Real-time trade feed and 1m candle updates
+- Trade history display under the trading panel
+- Simple slippage UI for demo purposes
 
 ## Project Structure
 
-```
-├── context.md                    # Detailed project documentation
-├── launchpad/                    # Scaffold-ETH 2 monorepo
-│   ├── packages/foundry/         # Smart contracts (Solidity + Foundry)
-│   │   ├── contracts/
-│   │   │   ├── TokenFactory.sol      # Deploys token proxies
-│   │   │   ├── LaunchToken.sol       # ERC-20 with bonding curve
-│   │   │   ├── SimplePool.sol        # Uniswap V4 pool creation
-│   │   │   └── TradeFeeHook.sol      # V4 trading fee hook
-│   │   └── script/
-│   │       └── DeployLaunchpadFork.s.sol
-│   └── packages/nextjs/          # Frontend (Next.js + wagmi)
-│       └── app/
-│           ├── page.tsx              # Home - token list
-│           ├── create/page.tsx       # Create new token
-│           └── token/[address]/page.tsx  # Token trading UI
-└── .agents/skills/ethereum-wingman/  # The AI skill being tested
+```text
+launchpad/
+  packages/
+    foundry/
+      contracts/        Solidity contracts and launch logic
+      script/           Foundry deployment scripts
+    nextjs/
+      app/              Next.js routes and pages
+      components/       UI components
+      hooks/            Frontend data hooks
+      utils/            Shared market/client helpers
+    market-server/
+      src/server.js     Local market data server
 ```
 
-## Running Locally
+## How It Works
+
+- `packages/foundry` deploys the launchpad contracts.
+- `packages/market-server` listens to on-chain events, computes trade prices, stores `trades` and `candles`, and pushes updates over WebSocket.
+- `packages/nextjs` reads initial market data over REST and subscribes to WebSocket updates for live chart/trade refreshes.
+
+The market server is a local demo backend. It is not part of the on-chain contracts.
+
+## Local Development
+
+From `launchpad/`:
 
 ```bash
-# Terminal 1: Start Anvil fork
-cd launchpad/packages/foundry
-anvil --fork-url <YOUR_MAINNET_RPC>
-
-# Terminal 2: Deploy contracts
-forge script script/DeployLaunchpadFork.s.sol --rpc-url http://localhost:8545 --broadcast
-
-# Terminal 3: Start frontend
-cd launchpad/packages/nextjs
-yarn dev
+yarn install
+yarn market:server
+yarn workspace @se-2/nextjs dev -p 3002
 ```
 
-Then open http://localhost:3000
+If you also want to run the chain and deploy locally:
 
-## About
+```bash
+cd packages/foundry
+anvil --fork-url <YOUR_RPC_URL> --chain-id 31337 --block-time 1
+forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --ffi
+```
 
-Built by [Austin Griffith](https://github.com/austintgriffith) as a test case for the Ethereum Wingman AI skill.
+## Main Features
+
+- Homepage token list with progress display
+- Token detail trade screen
+- Live 1m chart updates from market events
+- Recent trades list below the trade panel
+- Demo slippage settings UI
+- Local market data persistence for fast refreshes
+
+## Notes
+
+- The current slippage control is a frontend demo control.
+- The market server keeps `trades` and `candles` in local storage for the demo workflow.
+- The project is still a work in progress and the contracts, frontend, and local data service are evolving together.

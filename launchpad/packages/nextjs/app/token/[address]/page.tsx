@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Address } from "@scaffold-ui/components";
@@ -10,18 +10,31 @@ import { hardhat } from "viem/chains";
 import { useAccount, useBalance, useReadContract, useWriteContract } from "wagmi";
 import {
   ArrowLeftIcon,
-  ArrowsRightLeftIcon,
   ArrowTopRightOnSquareIcon,
+  ArrowsRightLeftIcon,
   BanknotesIcon,
   BeakerIcon,
   ClockIcon,
+  Cog6ToothIcon,
   ExclamationTriangleIcon,
   PlusIcon,
   RocketLaunchIcon,
 } from "@heroicons/react/24/outline";
-import { ERC20ApproveABI, LaunchTokenABI, CreatorFeeRouterABI, TokenFactoryABI, UniswapV2RouterABI } from "~~/contracts/externalContracts";
+import { TokenChartCard } from "~~/components/charts/TokenChartCard";
+import { RecentTradesPanel } from "~~/components/market/RecentTradesPanel";
+import {
+  CreatorFeeRouterABI,
+  ERC20ApproveABI,
+  LaunchTokenABI,
+  TokenFactoryABI,
+  UniswapV2RouterABI,
+} from "~~/contracts/externalContracts";
 import { useDeployedContractInfo, useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { useTokenMarketData } from "~~/hooks/useTokenMarketData";
+import { buildDemoCandles } from "~~/utils/marketData";
 import { notification } from "~~/utils/scaffold-eth";
+
+const SLIPPAGE_OPTIONS = [0.5, 1, 3, 5];
 
 // Pool Swap Interface Component for Graduated Tokens (V2 + Fee Router)
 const PoolSwapInterface = ({
@@ -318,7 +331,7 @@ const PoolSwapInterface = ({
     if (!chainName) return null;
     return `https://app.uniswap.org/swap?chain=${chainName}&inputCurrency=ETH&outputCurrency=${tokenAddress}`;
   };
-  
+
   const uniswapUrl = getUniswapUrl();
 
   return (
@@ -471,11 +484,15 @@ const PoolSwapInterface = ({
             <div className="font-mono font-semibold text-lg">
               {swapTab === "buy"
                 ? `${estimatedBuyTokens !== undefined ? (Number(estimatedBuyTokens) / 1e18).toFixed(4) : "0"} ${symbol}`
-                : `${estimatedSellEth !== undefined ? Number(formatEther(estimatedSellEth)).toFixed(10).replace(/\.?0+$/, "") : "0"} ETH`}
+                : `${
+                    estimatedSellEth !== undefined
+                      ? Number(formatEther(estimatedSellEth))
+                          .toFixed(10)
+                          .replace(/\.?0+$/, "")
+                      : "0"
+                  } ETH`}
             </div>
-            <div className="text-xs text-base-content/60 mt-1">
-              2% creator fee included
-            </div>
+            <div className="text-xs text-base-content/60 mt-1">2% creator fee included</div>
           </div>
 
           {/* Action Button */}
@@ -514,6 +531,8 @@ const TokenPage: NextPage = () => {
   const [showRugModal, setShowRugModal] = useState(false);
   const [isRugging, setIsRugging] = useState(false);
   const [isTestingLiquidity, setIsTestingLiquidity] = useState(false);
+  const [showSlippageSettings, setShowSlippageSettings] = useState(false);
+  const [slippagePercent, setSlippagePercent] = useState(1);
 
   // Token data reads with auto-refresh
   const { data: name } = useReadContract({
@@ -541,6 +560,19 @@ const TokenPage: NextPage = () => {
     functionName: "getCurrentPrice",
     query: { refetchInterval: 3000 },
   });
+
+  const demoCandles = useMemo(
+    () => buildDemoCandles({ tokenAddress, currentPrice: currentPrice as bigint | undefined }),
+    [currentPrice, tokenAddress],
+  );
+  const {
+    candles: marketCandles,
+    trades: recentTrades,
+    isLoading: isMarketLoading,
+    isLive: isMarketLive,
+    refetchMarketData,
+  } = useTokenMarketData(tokenAddress);
+  const chartCandles = marketCandles.length >= 2 ? marketCandles : demoCandles;
 
   const { data: treasury, refetch: refetchTreasury } = useReadContract({
     address: tokenAddress,
@@ -765,7 +797,10 @@ const TokenPage: NextPage = () => {
       });
       notification.success("Purchase successful!");
       setAmount("");
-      setTimeout(refetchAllData, 500);
+      setTimeout(() => {
+        refetchAllData();
+        refetchMarketData();
+      }, 1500);
     } catch (error: any) {
       notification.error(error.message || "Transaction failed");
     } finally {
@@ -789,7 +824,10 @@ const TokenPage: NextPage = () => {
       });
       notification.success("Sale successful!");
       setAmount("");
-      setTimeout(refetchAllData, 500);
+      setTimeout(() => {
+        refetchAllData();
+        refetchMarketData();
+      }, 1500);
     } catch (error: any) {
       notification.error(error.message || "Transaction failed");
     } finally {
@@ -916,7 +954,7 @@ const TokenPage: NextPage = () => {
       // First approve V2 Router to spend tokens
       const testTokenAmount = userBalance / 10n; // Use 10% of balance
       notification.info("Approving tokens for V2 Router...");
-      
+
       await writeContractAsync({
         address: tokenAddress,
         abi: ERC20ApproveABI,
@@ -925,9 +963,9 @@ const TokenPage: NextPage = () => {
       });
 
       notification.info("Attempting to add liquidity (this should fail before graduation)...");
-      
+
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
-      
+
       // This should fail with TransferToPoolBlocked error if security fix is working
       await writeContractAsync({
         address: v2RouterAddress as `0x${string}`,
@@ -963,6 +1001,15 @@ const TokenPage: NextPage = () => {
   // Calculate fee percentages for display
   const buyFeePercent = buyFeeBps ? Number(buyFeeBps) / 100 : 1;
   const sellFeePercent = sellFeeBps ? Number(sellFeeBps) / 100 : 2;
+  const minimumReceived = useMemo(() => {
+    if (activeTab === "buy") {
+      if (estimatedTokens === undefined) return null;
+      return Number(formatEther(estimatedTokens)) * (1 - slippagePercent / 100);
+    }
+
+    if (estimatedEth === undefined) return null;
+    return Number(formatEther(estimatedEth)) * (1 - slippagePercent / 100);
+  }, [activeTab, estimatedEth, estimatedTokens, slippagePercent]);
 
   return (
     <div className="container mx-auto px-6 py-8 max-w-4xl">
@@ -1113,13 +1160,27 @@ const TokenPage: NextPage = () => {
           </div>
         </div>
 
+        <TokenChartCard
+          candles={chartCandles}
+          isLoading={isMarketLoading && chartCandles.length === 0}
+          watermark={symbol || "TOKEN"}
+        />
+
         {/* Trade Card */}
         <div className="card bg-base-100 shadow-xl">
           <div className="card-body">
-            <h2 className="card-title">
-              <ArrowsRightLeftIcon className="w-5 h-5" />
-              Trade
-            </h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="card-title">
+                <ArrowsRightLeftIcon className="w-5 h-5" />
+                Trade
+              </h2>
+              {!graduated && (
+                <button className="btn btn-sm btn-outline gap-2" onClick={() => setShowSlippageSettings(true)}>
+                  <Cog6ToothIcon className="w-4 h-4" />
+                  Slippage {slippagePercent}%
+                </button>
+              )}
+            </div>
 
             {graduated ? (
               <PoolSwapInterface
@@ -1222,13 +1283,37 @@ const TokenPage: NextPage = () => {
                 </div>
 
                 <div className="bg-base-200 rounded-lg p-3 mt-4">
-                  <div className="text-sm text-base-content/60">You will receive (approx)</div>
-                  <div className="font-mono font-semibold text-lg">
-                    {activeTab === "buy"
-                      ? `${estimatedTokens !== undefined ? (Number(estimatedTokens) / 1e18).toFixed(4) : "0"} ${symbol || "tokens"}`
-                      : `${estimatedEth !== undefined ? Number(formatEther(estimatedEth)).toFixed(10).replace(/\.?0+$/, "") : "0"} ETH`}
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm text-base-content/60">You will receive (approx)</div>
+                      <div className="font-mono font-semibold text-lg">
+                        {activeTab === "buy"
+                          ? `${estimatedTokens !== undefined ? (Number(estimatedTokens) / 1e18).toFixed(4) : "0"} ${symbol || "tokens"}`
+                          : `${
+                              estimatedEth !== undefined
+                                ? Number(formatEther(estimatedEth))
+                                    .toFixed(10)
+                                    .replace(/\.?0+$/, "")
+                                : "0"
+                            } ETH`}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-base-content/60">Slippage</div>
+                      <div className="font-mono text-sm">{slippagePercent}%</div>
+                    </div>
                   </div>
-                  <div className="text-xs text-base-content/60 mt-1">
+                  <div className="mt-3 flex items-start justify-between gap-3 border-t border-base-300 pt-3">
+                    <div className="text-sm text-base-content/60">Minimum received</div>
+                    <div className="text-right font-mono text-sm">
+                      {minimumReceived !== null
+                        ? activeTab === "buy"
+                          ? `${minimumReceived.toFixed(4)} ${symbol || "tokens"}`
+                          : `${minimumReceived.toFixed(10).replace(/\.?0+$/, "")} ETH`
+                        : "-"}
+                    </div>
+                  </div>
+                  <div className="text-xs text-base-content/60 mt-2">
                     {activeTab === "buy" ? `${buyFeePercent}% fee applied` : `${sellFeePercent}% fee applied`}
                   </div>
                 </div>
@@ -1253,7 +1338,35 @@ const TokenPage: NextPage = () => {
             )}
           </div>
         </div>
+
+        <RecentTradesPanel trades={recentTrades} tokenSymbol={symbol || "TOKEN"} isLive={isMarketLive} />
       </div>
+
+      {showSlippageSettings && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="text-lg font-semibold">Slippage Settings</h3>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {SLIPPAGE_OPTIONS.map(option => (
+                <button
+                  key={option}
+                  className={`btn ${slippagePercent === option ? "btn-primary" : "btn-outline"}`}
+                  onClick={() => setSlippagePercent(option)}
+                >
+                  {option}%
+                </button>
+              ))}
+            </div>
+
+            <div className="modal-action">
+              <button className="btn" onClick={() => setShowSlippageSettings(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 text-center text-sm text-base-content/60">
         Token Contract:{" "}
@@ -1276,16 +1389,14 @@ const TokenPage: NextPage = () => {
                 Security Test: V2 Pair Transfer Blocking
               </h3>
               <p className="text-sm text-base-content/70">
-                Test that tokens cannot be transferred to the V2 pool address before graduation.
-                This prevents front-running attacks on pool creation.
+                Test that tokens cannot be transferred to the V2 pool address before graduation. This prevents
+                front-running attacks on pool creation.
               </p>
 
               {/* Show expected V2 pair address */}
               <div className="bg-base-200 rounded-lg p-3 mt-2">
                 <div className="text-xs text-base-content/60">Expected V2 Pair Address</div>
-                <div className="font-mono text-sm break-all">
-                  {expectedV2Pair || "Loading..."}
-                </div>
+                <div className="font-mono text-sm break-all">{expectedV2Pair || "Loading..."}</div>
                 <div className="text-xs text-base-content/50 mt-1">
                   Transfers to this address are blocked until graduation
                 </div>
@@ -1344,9 +1455,7 @@ const TokenPage: NextPage = () => {
                     <div className="font-mono">{treasury ? formatEther(treasury) : "0"} ETH</div>
                     <div className="col-span-2 border-t border-base-300 pt-1 mt-1">
                       <span className="font-semibold">Total: </span>
-                      <span className="font-mono">
-                        {formatEther((reserveBalance || 0n) + (treasury || 0n))} ETH
-                      </span>
+                      <span className="font-mono">{formatEther((reserveBalance || 0n) + (treasury || 0n))} ETH</span>
                     </div>
                   </div>
                 )}
@@ -1399,9 +1508,7 @@ const TokenPage: NextPage = () => {
               <ExclamationTriangleIcon className="w-6 h-6" />
               Confirm Emergency Withdraw
             </h3>
-            <p className="py-4">
-              Are you sure you want to drain all funds? This action cannot be undone.
-            </p>
+            <p className="py-4">Are you sure you want to drain all funds? This action cannot be undone.</p>
             <div className="bg-error/10 rounded-lg p-3 mb-4">
               <div className="text-sm">
                 {!graduated && (

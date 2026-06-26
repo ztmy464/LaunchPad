@@ -1,0 +1,14 @@
+{
+  "name": "@se-2/market-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "viem": "2.39.0",
+    "ws": "^8.18.0"
+  }
+}

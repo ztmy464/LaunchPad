@@ -40,12 +40,13 @@ interface TokenInfo {
   symbol: string;
   totalSupply: bigint;
   treasury: bigint;
+  reserveBalance: bigint;
   graduated: boolean;
   currentPrice: bigint;
 }
 
 const TokenCard = ({ token, graduationThreshold }: { token: TokenInfo; graduationThreshold: bigint }) => {
-  const progressPercent = graduationThreshold > 0n ? Number((token.treasury * 100n) / graduationThreshold) : 0;
+  const progressPercent = graduationThreshold > 0n ? Number((token.reserveBalance * 100n) / graduationThreshold) : 0;
 
   return (
     <Link href={`/token/${token.address}`}>
@@ -76,7 +77,11 @@ const TokenCard = ({ token, graduationThreshold }: { token: TokenInfo; graduatio
               <span className="font-mono">{Number(token.totalSupply / BigInt(1e18)).toLocaleString()}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-base-content/60">Treasury</span>
+              <span className="text-base-content/60">Reserve</span>
+              <span className="font-mono">{formatEther(token.reserveBalance)} ETH</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-base-content/60">Creator Fees</span>
               <span className="font-mono">{formatEther(token.treasury)} ETH</span>
             </div>
           </div>
@@ -84,7 +89,7 @@ const TokenCard = ({ token, graduationThreshold }: { token: TokenInfo; graduatio
           {!token.graduated && (
             <div className="mt-4">
               <div className="flex justify-between text-xs mb-1">
-                <span>Progress to Uniswap</span>
+                <span>Progress to Graduation</span>
                 <span>{Math.min(progressPercent, 100)}%</span>
               </div>
               <progress className="progress progress-primary w-full" value={Math.min(progressPercent, 100)} max="100" />
@@ -159,6 +164,11 @@ const Home: NextPage = () => {
     abi: LaunchTokenABI,
     functionName: "getCurrentPrice" as const,
   }));
+  const reserveReads = (tokenAddresses || []).map(addr => ({
+    address: addr,
+    abi: LaunchTokenABI,
+    functionName: "reserveBalance" as const,
+  }));
 
   const { data: prices } = useReadContracts({
     contracts: priceReads,
@@ -166,10 +176,16 @@ const Home: NextPage = () => {
       enabled: priceReads.length > 0,
     },
   });
+  const { data: reserves } = useReadContracts({
+    contracts: reserveReads,
+    query: {
+      enabled: reserveReads.length > 0,
+    },
+  });
 
   // Combine all data into token info
   useEffect(() => {
-    if (tokenAddresses && tokensInfo && prices) {
+    if (tokenAddresses && tokensInfo && prices && reserves) {
       const [names, symbols, supplies, treasuries, graduatedFlags] = tokensInfo;
       const tokenList: TokenInfo[] = tokenAddresses.map((addr, i) => ({
         address: addr as `0x${string}`,
@@ -177,6 +193,7 @@ const Home: NextPage = () => {
         symbol: symbols[i],
         totalSupply: supplies[i],
         treasury: treasuries[i],
+        reserveBalance: (reserves[i]?.result as bigint) || 0n,
         graduated: graduatedFlags[i],
         currentPrice: (prices[i]?.result as bigint) || 0n,
       }));
@@ -185,7 +202,7 @@ const Home: NextPage = () => {
     } else if (tokenAddresses && tokenAddresses.length === 0) {
       setLoading(false);
     }
-  }, [tokenAddresses, tokensInfo, prices]);
+  }, [tokenAddresses, tokensInfo, prices, reserves]);
 
   return (
     <div className="flex flex-col grow">

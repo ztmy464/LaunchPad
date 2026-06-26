@@ -265,6 +265,7 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
      * @return progress Percentage (0-100) of graduation threshold reached
      * @dev Based on reserveBalance, not treasury
      */
+    //  ----- Graduation Functions -----
     function graduationProgress() external view returns (uint256) {
         if (graduated) return 100;
         return (reserveBalance * 100) / BondingCurveMath.GRADUATION_THRESHOLD;
@@ -288,6 +289,7 @@ contract LaunchToken is Initializable, ERC20Upgradeable {
      * @dev This prevents front-running attacks where someone creates the V2 pair
      *      with a bad ratio before the official pool creation
      */
+     //  ----- 拦截转账到毕业池 -----
     function _update(
         address from,
         address to,

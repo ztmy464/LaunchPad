@@ -2489,7 +2489,7 @@ const deployedContracts = {
   },
   31337: {
     TokenFactory: {
-      address: "0x8a6f92cbd703a44be0d4616cbeaa79c73f854c97",
+      address: "0x9fa4a0b4331d54e8bad4acc74e2b8c2760c85939",
       abi: [
         {
           type: "constructor",
@@ -3436,10 +3436,10 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 47832361,
+      deployedOnBlock: 47836386,
     },
     CreatorFeeRouter: {
-      address: "0xb549a7e3aa7aa234ebcf518ab0d6bca4c6e5bb29",
+      address: "0x335970f1a7627a9104f242b6527c871e06706020",
       abi: [
         {
           type: "constructor",
@@ -4027,7 +4027,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 47832361,
+      deployedOnBlock: 47836386,
     },
   },
 } as const;

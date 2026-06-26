@@ -15,8 +15,8 @@ export const DEFAULT_ALCHEMY_API_KEY = "cR4WnXePioePZ5fFrnSiR";
 
 const scaffoldConfig = {
   // The networks on which your DApp is live
-  // Local fork for testing V2 migration
-  targetNetworks: [chains.base],
+  // Local anvil network for development
+  targetNetworks: [chains.hardhat],
   // The interval at which your front-end polls the RPC servers for new data
   pollingInterval: 3000,
   // This is ours Alchemy's default API key.

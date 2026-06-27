@@ -6,7 +6,7 @@ import "../contracts/TokenFactory.sol";
 import "../contracts/CreatorFeeRouter.sol";
 
 /**
- * @notice Deploy script for Token Launchpad with Uniswap V2 integration
+ * @notice Deploy script for LaunchPad with Uniswap V2 integration
  * @dev Deploys TokenFactory and CreatorFeeRouter, links them to V2 Router
  *
  * For local testing with Base fork:

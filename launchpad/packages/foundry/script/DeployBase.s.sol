@@ -10,7 +10,7 @@ import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
 /**
- * @notice Production deployment script for Token Launchpad on Base Mainnet
+ * @notice Production deployment script for LaunchPad on Base Mainnet
  * @dev Deploys:
  *      1. TradeFeeHook with CREATE2 (mined address with correct hook flags)
  *      2. TokenFactory with the deployed hook

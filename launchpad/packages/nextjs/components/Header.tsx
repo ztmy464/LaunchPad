@@ -8,8 +8,6 @@ import { Bars3Icon, BugAntIcon, RocketLaunchIcon } from "@heroicons/react/24/out
 import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
 import { useOutsideClick, useTargetNetwork } from "~~/hooks/scaffold-eth";
 
-
-
 type HeaderMenuLink = {
   label: string;
   href: string;
@@ -18,14 +16,14 @@ type HeaderMenuLink = {
 
 export const menuLinks: HeaderMenuLink[] = [
   {
-    label: 'Home',
-    href: '/'
+    label: "Home",
+    href: "/",
   },
   {
-    label: 'Debug Contracts',
-    href: '/debug',
-    icon: <BugAntIcon className="h-4 w-4" />
-  }
+    label: "Debug Contracts",
+    href: "/debug",
+    icon: <BugAntIcon className="h-4 w-4" />,
+  },
 ];
 
 export const HeaderMenuLinks = () => {
@@ -84,7 +82,7 @@ export const Header = () => {
         </details>
         <Link href="/" passHref className="hidden lg:flex items-center gap-2 ml-4 mr-6 shrink-0">
           <RocketLaunchIcon className="w-8 h-8 text-primary" />
-          <span className="font-bold text-lg">Token Launchpad</span>
+          <span className="font-bold text-lg">LaunchPad</span>
         </Link>
         <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-2">
           <HeaderMenuLinks />

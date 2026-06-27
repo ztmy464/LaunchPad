@@ -12,7 +12,7 @@ import { DeployLaunchpad } from "./DeployLaunchpad.s.sol";
  */
 contract DeployScript is ScaffoldETHDeploy {
   function run() external {
-    // Deploy Token Launchpad contracts
+    // Deploy LaunchPad contracts
     DeployLaunchpad deployLaunchpad = new DeployLaunchpad();
     deployLaunchpad.run();
   }

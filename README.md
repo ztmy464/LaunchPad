@@ -1,6 +1,6 @@
-# Example Token Launcher
+# LaunchPad
 
-`example-token-launcher` is a token launchpad demo built on Scaffold-ETH 2. It is the frontend base I am using to prototype a Pump.fun-style launchpad on EVM chains.
+`LaunchPad` is a token launchpad demo built on Scaffold-ETH 2. It is the frontend base I am using to prototype a Pump.fun-style launchpad on EVM chains.
 
 The project now includes:
 

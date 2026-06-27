@@ -6,7 +6,7 @@ import "../contracts/TokenFactory.sol";
 import "../contracts/CreatorFeeRouter.sol";
 
 /**
- * @notice Deploy script for Token Launchpad on Base Fork
+ * @notice Deploy script for LaunchPad on Base Fork
  * @dev This script deploys the launchpad contracts with V2 integration
  *
  * Run with:
